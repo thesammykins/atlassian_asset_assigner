@@ -133,6 +133,16 @@ class Config:
         return os.getenv('ASSIGNEE_ATTRIBUTE', 'Assignee')
     
     @property
+    def retirement_date_attribute(self) -> str:
+        """Get the retirement date attribute name."""
+        return os.getenv('RETIREMENT_DATE_ATTRIBUTE', 'Retirement Date')
+    
+    @property
+    def asset_status_attribute(self) -> str:
+        """Get the asset status attribute name."""
+        return os.getenv('ASSET_STATUS_ATTRIBUTE', 'Asset Status')
+    
+    @property
     def max_requests_per_minute(self) -> int:
         """Get the maximum requests per minute for rate limiting."""
         return int(os.getenv('MAX_REQUESTS_PER_MINUTE', '300'))

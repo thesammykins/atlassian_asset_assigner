@@ -2,13 +2,22 @@
 """
 Jira Assets Manager - Main CLI Application
 
-This script manages Jira Assets by extracting user email attributes,
-looking up corresponding Jira accountIds, and updating assignee attributes.
+This script manages Jira Assets by:
+1. Extracting user email attributes and updating assignee attributes
+2. Automatically retiring assets that have retirement dates set
+
+Features:
+- User email → Assignee mapping: Extract user email, lookup Jira accountId, update assignee
+- Asset retirement: Find assets with retirement dates and update status to "Retired"
+- Bulk operations with progress tracking and error handling
+- Dry-run mode for safe testing before applying changes
 
 Usage:
-    python main.py --test-asset HW-459  # Test on specific asset
-    python main.py --bulk --dry-run     # Preview bulk operation
-    python main.py --bulk               # Execute bulk operation
+    python main.py --test-asset HW-459       # Test on specific asset
+    python main.py --bulk --dry-run          # Preview bulk assignee operation
+    python main.py --bulk --execute          # Execute bulk assignee operation
+    python main.py --retire-assets --dry-run # Preview retirement operation
+    python main.py --retire-assets --execute # Execute retirement operation
 """
 
 import sys
@@ -315,6 +324,134 @@ def process_bulk_assets(asset_manager: AssetManager, dry_run: bool = True, batch
         return []
 
 
+def display_retirement_details(result: Dict[str, Any]):
+    """Display detailed information about an asset retirement result."""
+    object_key = result.get('object_key', 'Unknown')
+    
+    print(f"\n{Fore.CYAN}{'='*60}")
+    print(f"Asset: {object_key}")
+    print(f"{'='*60}{Style.RESET_ALL}")
+    
+    # Basic info
+    print(f"{'Retirement Date:':<20} {result.get('retirement_date', 'Not found')}")
+    print(f"{'Current Status:':<20} {result.get('current_status', 'None')}")
+    print(f"{'New Status:':<20} {result.get('new_status', 'No change')}")
+    
+    # Status
+    if result.get('success'):
+        if result.get('updated'):
+            print_success("Status: Successfully retired")
+        elif result.get('skipped'):
+            print_warning(f"Status: Skipped - {result.get('skip_reason', 'Unknown reason')}")
+        else:
+            print_info("Status: Processed (dry run)")
+    else:
+        error_msg = result.get('error', 'Unknown error')
+        print_error(f"Status: Failed - {error_msg}")
+    
+    print()
+
+
+def test_single_retirement(asset_manager: AssetManager, object_key: str, dry_run: bool = True) -> Dict[str, Any]:
+    """Test processing a single asset retirement."""
+    print_info(f"Testing retirement for asset: {object_key} (dry_run={dry_run})")
+    
+    try:
+        result = asset_manager.process_retirement(object_key, dry_run=dry_run)
+        display_retirement_details(result)
+        return result
+        
+    except AssetNotFoundError:
+        print_error(f"Asset {object_key} not found")
+        return {'object_key': object_key, 'success': False, 'error': 'Asset not found'}
+    except (ValidationError, AssetUpdateError) as e:
+        print_error(f"Retirement processing failed: {e}")
+        return {'object_key': object_key, 'success': False, 'error': str(e)}
+    except Exception as e:
+        print_error(f"Unexpected error: {e}")
+        return {'object_key': object_key, 'success': False, 'error': f"Unexpected error: {e}"}
+
+
+def process_asset_retirements(asset_manager: AssetManager, dry_run: bool = True, batch_size: int = None) -> List[Dict[str, Any]]:
+    """Process all assets that need to be retired."""
+    if batch_size is None:
+        batch_size = config.config.batch_size
+    
+    print_info(f"Starting asset retirement processing (dry_run={dry_run}, batch_size={batch_size})")
+    
+    try:
+        # Get all laptops objects with retirement dates
+        print_info("Fetching all laptop assets with retirement dates...")
+        all_objects = asset_manager.get_assets_pending_retirement()
+        
+        if not all_objects:
+            print_warning("No assets found with retirement dates")
+            return []
+        
+        print_info(f"Found {len(all_objects)} assets with retirement dates")
+        
+        # Filter objects that need to be retired (not already retired)
+        print_info("Filtering assets for retirement...")
+        objects_to_retire = asset_manager.filter_assets_for_retirement(all_objects)
+        
+        if not objects_to_retire:
+            print_warning("No assets found that need to be retired (all may already be retired)")
+            return []
+        
+        print_info(f"Found {len(objects_to_retire)} assets to retire")
+        
+        # Process assets with progress tracking
+        results = []
+        progress = ProgressTracker(len(objects_to_retire), "Retiring assets")
+        
+        try:
+            for i, asset_obj in enumerate(objects_to_retire):
+                object_key = asset_obj.get('objectKey', f'unknown_{i}')
+                
+                try:
+                    result = asset_manager.process_retirement(object_key, dry_run=dry_run)
+                    results.append(result)
+                    progress.update(result)
+                    
+                    # Optional: Add small delay for rate limiting
+                    # time.sleep(0.1)
+                    
+                except Exception as e:
+                    error_result = {
+                        'object_key': object_key,
+                        'success': False,
+                        'error': str(e),
+                        'dry_run': dry_run,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                    results.append(error_result)
+                    progress.update(error_result)
+        
+        finally:
+            progress.close()
+        
+        # Save results
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"retirement_processing_results_{timestamp}.json"
+        save_results(results, filename)
+        
+        # Display summary
+        summary = asset_manager.get_processing_summary(results)
+        display_summary(summary)
+        
+        return results
+        
+    except (SchemaNotFoundError, ObjectTypeNotFoundError) as e:
+        print_error(f"Configuration error: {e}")
+        return []
+    except JiraAssetsAPIError as e:
+        print_error(f"Assets API error: {e}")
+        return []
+    except Exception as e:
+        print_error(f"Unexpected error during retirement processing: {e}")
+        return []
+
+
 def setup_argument_parser() -> argparse.ArgumentParser:
     """Set up command-line argument parser."""
     parser = argparse.ArgumentParser(
@@ -327,6 +464,8 @@ Examples:
   %(prog)s --bulk --dry-run                Preview bulk operation
   %(prog)s --bulk                          Execute bulk operation
   %(prog)s --bulk --batch-size 5           Process in smaller batches
+  %(prog)s --retire-assets --dry-run       Preview retirement processing
+  %(prog)s --retire-assets --execute       Execute retirement processing
         """
     )
     
@@ -341,6 +480,11 @@ Examples:
         '--bulk',
         action='store_true',
         help='Process all assets in Hardware/Laptops schema'
+    )
+    group.add_argument(
+        '--retire-assets',
+        action='store_true',
+        help='Retire assets that have a retirement date set'
     )
     group.add_argument(
         '--oauth-setup',
@@ -539,6 +683,22 @@ def main():
                     return 1
             else:
                 print_error("Bulk processing failed")
+                return 1
+        
+        elif args.retire_assets:
+            # Asset retirement processing
+            results = process_asset_retirements(asset_manager, dry_run, args.batch_size)
+            
+            if results:
+                summary = asset_manager.get_processing_summary(results)
+                if summary.get('errors', 0) == 0:
+                    print_success("Asset retirement processing completed successfully!")
+                    return 0
+                else:
+                    print_warning("Asset retirement processing completed with some errors")
+                    return 1
+            else:
+                print_error("Asset retirement processing failed")
                 return 1
                 
         elif args.oauth_setup:
