@@ -8,6 +8,8 @@ and attribute updates with validation.
 
 import logging
 import json
+import csv
+from pathlib import Path
 from typing import Dict, List, Optional, Any, Union, Tuple
 from datetime import datetime
 
@@ -666,15 +668,15 @@ class AssetManager:
             Summary statistics
         """
         total = len(results)
-        successful = sum(1 for r in results if r['success'])
-        updated = sum(1 for r in results if r['updated'])
-        skipped = sum(1 for r in results if r['skipped'])
+        successful = sum(1 for r in results if r.get('success', False))
+        updated = sum(1 for r in results if r.get('updated', False))
+        skipped = sum(1 for r in results if r.get('skipped', False))
         errors = sum(1 for r in results if r.get('error'))
         
         # Group skip reasons
         skip_reasons = {}
         for r in results:
-            if r['skipped'] and r['skip_reason']:
+            if r.get('skipped', False) and r.get('skip_reason'):
                 reason = r['skip_reason']
                 skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
         
@@ -729,3 +731,263 @@ class AssetManager:
             'user_client': user_stats,
             'assets_client': assets_stats
         }
+    
+    def parse_serial_numbers_from_csv(self, csv_file_path: str) -> List[str]:
+        """
+        Parse serial numbers from a CSV file.
+        
+        Args:
+            csv_file_path: Path to the CSV file containing SERIAL_NUMBER column
+            
+        Returns:
+            List of serial numbers from the CSV file
+            
+        Raises:
+            FileNotFoundError: If CSV file doesn't exist
+            ValidationError: If CSV format is invalid or missing required columns
+        """
+        self.logger.info(f"Parsing serial numbers from CSV: {csv_file_path}")
+        
+        # Check if file exists
+        csv_path = Path(csv_file_path)
+        if not csv_path.exists():
+            raise FileNotFoundError(f"CSV file not found: {csv_file_path}")
+        
+        serial_numbers = []
+        
+        try:
+            # Try different encodings to handle various CSV file formats
+            for encoding in ['utf-8-sig', 'utf-8', 'iso-8859-1', 'cp1252']:
+                try:
+                    with open(csv_path, 'r', encoding=encoding, newline='') as csvfile:
+                        # Detect dialect, but fallback to default CSV dialect for single-column files
+                        sample = csvfile.read(1024)
+                        csvfile.seek(0)
+                        
+                        try:
+                            dialect = csv.Sniffer().sniff(sample, delimiters=',;\t')
+                        except csv.Error:
+                            # Fallback to default comma-separated dialect for single-column CSVs
+                            dialect = csv.excel
+                        
+                        reader = csv.DictReader(csvfile, dialect=dialect)
+                        
+                        # Check if SERIAL_NUMBER column exists
+                        if 'SERIAL_NUMBER' not in reader.fieldnames:
+                            available_columns = ', '.join(reader.fieldnames or [])
+                            raise ValidationError(
+                                f"CSV file must contain 'SERIAL_NUMBER' column. "
+                                f"Available columns: {available_columns}"
+                            )
+                        
+                        # Read serial numbers
+                        row_count = 0
+                        for row_num, row in enumerate(reader, start=2):  # Start at 2 to account for header
+                            serial_number = row.get('SERIAL_NUMBER', '').strip()
+                            
+                            if serial_number:
+                                # Normalize serial number (uppercase, remove extra spaces)
+                                normalized_serial = serial_number.upper().replace(' ', '')
+                                serial_numbers.append(normalized_serial)
+                                self.logger.debug(f"Row {row_num}: Found serial number '{normalized_serial}'")
+                            else:
+                                self.logger.warning(f"Row {row_num}: Empty serial number, skipping")
+                            
+                            row_count += 1
+                        
+                        self.logger.info(f"Successfully parsed {len(serial_numbers)} serial numbers from {row_count} rows")
+                        break  # Successfully parsed, exit encoding loop
+                        
+                except UnicodeDecodeError:
+                    self.logger.debug(f"Failed to decode CSV with {encoding} encoding, trying next")
+                    continue
+                except csv.Error as e:
+                    if encoding == 'cp1252':  # Last encoding attempt
+                        raise ValidationError(f"Failed to parse CSV file: {e}")
+                    continue
+            
+            else:
+                # No encoding worked
+                raise ValidationError(
+                    f"Unable to read CSV file with any supported encoding. "
+                    f"Please ensure the file is in UTF-8, UTF-8 with BOM, ISO-8859-1, or CP1252 format."
+                )
+        
+        except (IOError, OSError) as e:
+            raise ValidationError(f"Error reading CSV file: {e}")
+        
+        if not serial_numbers:
+            raise ValidationError("No valid serial numbers found in CSV file")
+        
+        # Remove duplicates while preserving order
+        unique_serial_numbers = list(dict.fromkeys(serial_numbers))
+        if len(unique_serial_numbers) != len(serial_numbers):
+            duplicates_count = len(serial_numbers) - len(unique_serial_numbers)
+            self.logger.warning(f"Removed {duplicates_count} duplicate serial numbers")
+        
+        self.logger.info(f"Final result: {len(unique_serial_numbers)} unique serial numbers")
+        return unique_serial_numbers
+    
+    def get_object_type_by_id(self, object_type_id: int) -> Dict[str, Any]:
+        """
+        Get an object type by its ID.
+        
+        Args:
+            object_type_id: The object type ID
+            
+        Returns:
+            Object type information
+            
+        Raises:
+            ObjectTypeNotFoundError: If object type is not found
+            JiraAssetsAPIError: For other API errors
+        """
+        self.logger.info(f"Getting object type information for ID {object_type_id}")
+        
+        # Get all schemas and their object types to find the one with matching ID
+        schemas = self.assets_client.get_object_schemas()
+        
+        for schema in schemas:
+            schema_id = schema['id']
+            try:
+                object_types = self.assets_client.get_object_types(schema_id)
+                for obj_type in object_types:
+                    if int(obj_type['id']) == object_type_id:
+                        self.logger.info(f"Found object type {obj_type['name']} (ID: {object_type_id}) in schema {schema['name']}")
+                        return obj_type
+            except Exception as e:
+                self.logger.debug(f"Error searching schema {schema_id} for object type {object_type_id}: {e}")
+                continue
+        
+        raise ObjectTypeNotFoundError(f"Object type with ID {object_type_id} not found in any schema")
+    
+    def process_asset_migration(self, csv_file_path: str, source_object_type_id: int, 
+                              target_object_type_id: int, dry_run: bool = True, 
+                              delete_original: bool = False) -> List[Dict[str, Any]]:
+        """
+        Process asset migration from CSV file containing serial numbers.
+        
+        Args:
+            csv_file_path: Path to CSV file with SERIAL_NUMBER column
+            source_object_type_id: Source object type ID to migrate from
+            target_object_type_id: Target object type ID to migrate to
+            dry_run: If True, don't actually migrate assets
+            delete_original: If True, delete original assets after migration
+            
+        Returns:
+            List of migration results
+            
+        Raises:
+            ValidationError: For validation errors
+            ObjectTypeNotFoundError: If object types don't exist
+            FileNotFoundError: If CSV file doesn't exist
+        """
+        self.logger.info(f"Starting asset migration from CSV {csv_file_path} (source: {source_object_type_id}, target: {target_object_type_id}, dry_run: {dry_run})")
+        
+        # 1. Validate source and target object types exist
+        try:
+            source_obj_type = self.get_object_type_by_id(source_object_type_id)
+            target_obj_type = self.get_object_type_by_id(target_object_type_id)
+        except ObjectTypeNotFoundError as e:
+            raise ValidationError(f"Invalid object type: {e}")
+        
+        source_type_name = source_obj_type['name']
+        target_type_name = target_obj_type['name']
+        
+        self.logger.info(f"Migrating from '{source_type_name}' (ID: {source_object_type_id}) to '{target_type_name}' (ID: {target_object_type_id})")
+        
+        # 2. Parse serial numbers from CSV
+        try:
+            serial_numbers = self.parse_serial_numbers_from_csv(csv_file_path)
+        except (FileNotFoundError, ValidationError) as e:
+            self.logger.error(f"CSV parsing failed: {e}")
+            raise
+        
+        if not serial_numbers:
+            raise ValidationError("No serial numbers found in CSV file")
+        
+        self.logger.info(f"Processing {len(serial_numbers)} assets for migration")
+        
+        # 3. Process each asset
+        results = []
+        for i, serial_number in enumerate(serial_numbers):
+            result = {
+                'serial_number': serial_number,
+                'source_object_type_id': source_object_type_id,
+                'target_object_type_id': target_object_type_id,
+                'source_object_key': None,
+                'source_object_id': None,
+                'new_object_key': None,
+                'new_object_id': None,
+                'mapped_attributes': 0,
+                'warnings': [],
+                'unmapped_attributes': [],
+                'original_deleted': delete_original if not dry_run else False,
+                'success': False,
+                'skipped': False,
+                'skip_reason': None,
+                'error': None,
+                'dry_run': dry_run,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            try:
+                # Find asset by serial number in source object type
+                self.logger.info(f"Processing {i+1}/{len(serial_numbers)}: Finding asset with serial number '{serial_number}'")
+                
+                try:
+                    source_asset = self.assets_client.find_object_by_serial_number(
+                        serial_number, source_object_type_id
+                    )
+                    result['source_object_key'] = source_asset.get('objectKey')
+                    result['source_object_id'] = source_asset.get('id')
+                    
+                except AssetNotFoundError:
+                    result['skipped'] = True
+                    result['skip_reason'] = f"Asset with serial number '{serial_number}' not found in source object type {source_type_name}"
+                    self.logger.warning(f"Skipping {serial_number}: {result['skip_reason']}")
+                    results.append(result)
+                    continue
+                
+                # Perform migration (or simulate in dry-run)
+                if not dry_run:
+                    migration_result = self.assets_client.migrate_object_to_type(
+                        source_asset, target_object_type_id, delete_original
+                    )
+                    
+                    result.update({
+                        'new_object_key': migration_result['new_object_key'],
+                        'new_object_id': migration_result['new_object_id'],
+                        'mapped_attributes': migration_result['mapped_attributes'],
+                        'warnings': migration_result['warnings'],
+                        'unmapped_attributes': migration_result['unmapped_attributes'],
+                        'original_deleted': migration_result['original_deleted']
+                    })
+                    
+                    self.logger.info(f"Migrated {serial_number}: {result['source_object_key']} → {result['new_object_key']}")
+                else:
+                    # Dry-run: simulate the migration to show what would happen
+                    source_attributes = self.assets_client.get_object_attributes(source_object_type_id)
+                    mapped_attrs, warnings, unmapped_attrs = self.assets_client.map_attributes_between_types(
+                        source_attributes, source_asset, target_object_type_id
+                    )
+                    
+                    result.update({
+                        'mapped_attributes': len(mapped_attrs),
+                        'warnings': warnings,
+                        'unmapped_attributes': unmapped_attrs
+                    })
+                    
+                    self.logger.info(f"Dry-run: Would migrate {serial_number} ({result['source_object_key']}) with {len(mapped_attrs)} attributes")
+                
+                result['success'] = True
+                
+            except Exception as e:
+                error_msg = f"Failed to process asset with serial number '{serial_number}': {e}"
+                result['error'] = error_msg
+                self.logger.error(error_msg, exc_info=True)
+            
+            results.append(result)
+        
+        self.logger.info(f"Asset migration processing complete: {len(results)} assets processed")
+        return results

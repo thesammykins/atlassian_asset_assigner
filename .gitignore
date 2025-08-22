@@ -39,6 +39,9 @@ logs/
 # Backups
 backups/
 
+# CSV files (may contain sensitive data)
+*.csv
+
 # IDE
 .vscode/
 .idea/

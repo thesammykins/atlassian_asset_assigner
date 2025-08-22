@@ -65,7 +65,7 @@ class Config:
             value = os.getenv(var)
             if not value:
                 missing_vars.append(var)
-            elif value in ['YOUR_ATLASSIAN_API_TOKEN_HERE', 'your.email@ferocia.com.au', 'your-client-id-here', 'your-client-secret-here']:
+            elif value in ['YOUR_ATLASSIAN_API_TOKEN_HERE', 'your.email@company.com', 'your-client-id-here', 'your-client-secret-here']:
                 placeholder_vars.append(var)
         
         if missing_vars:
@@ -90,7 +90,7 @@ class Config:
     @property
     def jira_domain(self) -> str:
         """Get the Jira domain."""
-        return os.getenv('JIRA_DOMAIN', 'ferocia.atlassian.net')
+        return os.getenv('JIRA_DOMAIN', 'your-domain.atlassian.net')
     
     @property
     def jira_base_url(self) -> str:
