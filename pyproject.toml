@@ -1,0 +1,25 @@
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+include = "\\.pyi?$"
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+exclude = [
+  "venv",
+  ".venv",
+  "env",
+  "backups",
+  "logs",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
