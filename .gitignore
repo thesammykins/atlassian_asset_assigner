@@ -52,6 +52,24 @@ backups/
 .DS_Store
 Thumbs.db
 
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.nox/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Linting and formatting
+.ruff_cache/
+
+# OAuth tokens and authentication
+~/.jira_assets_oauth_token.json
+
 # Beep/Boop coordination files
 beep
 boop
