@@ -10,10 +10,9 @@ Reference: https://developer.atlassian.com/cloud/assets/rest/api-group-object/
 
 import logging
 import time
-import json
-from typing import Dict, List, Optional, Any, Union
+from typing import Any, Dict, List, Tuple
+
 import requests
-from urllib.parse import quote
 
 from config import config
 from oauth_client import OAuthClient, TokenError
@@ -395,7 +394,7 @@ class JiraAssetsClient:
     
     def get_object_by_key(self, object_key: str) -> Dict[str, Any]:
         """
-        Get an object by its key (e.g., HW-459).
+        Get an object by its key (e.g., HW-0003).
         
         Args:
             object_key: The object key
@@ -619,3 +618,309 @@ class JiraAssetsClient:
             'cached_object_types': len(self.object_type_cache),
             'cached_attributes': len(self.attribute_cache)
         }
+    
+    def find_object_by_serial_number(self, serial_number: str, object_type_id: int) -> Dict[str, Any]:
+        """
+        Find an asset object by its serial number within a specific object type.
+        
+        Args:
+            serial_number: The serial number to search for
+            object_type_id: The object type ID to search within
+            
+        Returns:
+            Complete asset object data
+            
+        Raises:
+            AssetNotFoundError: If no asset found with the given serial number
+            JiraAssetsAPIError: For other API errors
+        """
+        self.logger.info(f"Finding asset with serial number '{serial_number}' in object type {object_type_id}")
+        
+        # Build AQL query to find asset by serial number (without object type filter due to AQL inheritance issues)
+        aql_query = f'"Serial Number" = "{serial_number}"'
+        
+        try:
+            result = self.find_objects_by_aql(aql_query, limit=10)  # Slightly higher limit to handle multiple matches
+            objects = result.get('values', [])
+            
+            if not objects:
+                raise AssetNotFoundError(f"No asset found with serial number '{serial_number}'")
+            
+            # Filter by object type after AQL search since AQL objectType filtering doesn't work reliably with inheritance
+            matching_objects = []
+            for obj in objects:
+                # Get complete object data to check object type
+                object_key = obj.get('objectKey')
+                if object_key:
+                    try:
+                        complete_obj = self.get_object_by_key(object_key)
+                        obj_type_id = complete_obj.get('objectType', {}).get('id')
+                        
+                        # Check if object type matches (handle both string and int comparison)
+                        if str(obj_type_id) == str(object_type_id) or int(obj_type_id) == int(object_type_id):
+                            matching_objects.append(complete_obj)
+                    except Exception as e:
+                        self.logger.warning(f"Error checking object type for {object_key}: {e}")
+                        continue
+            
+            if not matching_objects:
+                raise AssetNotFoundError(f"No asset found with serial number '{serial_number}' in object type {object_type_id}")
+            
+            if len(matching_objects) > 1:
+                object_keys = [obj.get('objectKey', 'unknown') for obj in matching_objects]
+                self.logger.warning(f"Multiple assets found with serial number '{serial_number}' in object type {object_type_id}: {object_keys}. Using first one.")
+            
+            # Return the first matching asset
+            complete_asset = matching_objects[0]
+            object_key = complete_asset.get('objectKey')
+            self.logger.info(f"Found asset {object_key} with serial number '{serial_number}' in object type {object_type_id}")
+            
+            return complete_asset
+            
+        except AssetNotFoundError:
+            # Re-raise as-is
+            raise
+        except JiraAssetsAPIError:
+            # Re-raise as-is
+            raise
+        except Exception as e:
+            error_msg = f"Unexpected error finding asset with serial number '{serial_number}': {e}"
+            self.logger.error(error_msg, exc_info=True)
+            raise JiraAssetsAPIError(error_msg)
+    
+    def create_object(self, object_type_id: int, attributes: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Create a new object in the specified object type.
+        
+        Args:
+            object_type_id: The object type ID to create the object in
+            attributes: List of attribute values for the new object
+            
+        Returns:
+            Created object information
+            
+        Raises:
+            JiraAssetsAPIError: For API errors
+        """
+        self.logger.info(f"Creating new object in object type {object_type_id} with {len(attributes)} attributes")
+        
+        self._rate_limit()
+        
+        url = f"{self.assets_base_url}/object/create"
+        
+        payload = {
+            "objectTypeId": object_type_id,
+            "attributes": attributes
+        }
+        
+        try:
+            response = self.session.post(url, json=payload)
+            data = self._handle_response(response, f"create object in type {object_type_id}")
+            
+            object_key = data.get('objectKey', 'unknown')
+            self.logger.info(f"Successfully created object {object_key} in object type {object_type_id}")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Network error while creating object: {e}"
+            self.logger.error(error_msg)
+            raise JiraAssetsAPIError(error_msg)
+    
+    def delete_object(self, object_id: int) -> bool:
+        """
+        Delete an object by its ID.
+        
+        Args:
+            object_id: The object ID to delete
+            
+        Returns:
+            True if deletion was successful
+            
+        Raises:
+            JiraAssetsAPIError: For API errors
+        """
+        self.logger.info(f"Deleting object {object_id}")
+        
+        # Refresh OAuth headers before making the request
+        if self.oauth_client:
+            self._refresh_oauth_headers()
+        
+        self._rate_limit()
+        
+        url = f"{self.assets_base_url}/object/{object_id}"
+        
+        try:
+            response = self.session.delete(url)
+            
+            # Handle successful deletion (204 No Content)
+            if response.status_code == 204:
+                self.logger.info(f"Successfully deleted object {object_id}")
+                return True
+            
+            # For other status codes, use standard error handling
+            self._handle_response(response, f"delete object {object_id}")
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Network error while deleting object {object_id}: {e}"
+            self.logger.error(error_msg)
+            raise JiraAssetsAPIError(error_msg)
+    
+    def map_attributes_between_types(self, source_attributes: List[Dict[str, Any]], 
+                                   source_object_data: Dict[str, Any], 
+                                   target_object_type_id: int) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
+        """
+        Map attributes from source object to target object type.
+        
+        Args:
+            source_attributes: Source object type attributes
+            source_object_data: Source object data with values
+            target_object_type_id: Target object type ID
+            
+        Returns:
+            Tuple of (mapped_attributes, warnings, unmapped_attributes)
+        """
+        self.logger.info(f"Mapping attributes to target object type {target_object_type_id}")
+        
+        # Get target object type attributes
+        target_attributes = self.get_object_attributes(target_object_type_id)
+        
+        # Create a mapping of attribute names to target attribute definitions
+        target_attr_map = {attr['name']: attr for attr in target_attributes}
+        
+        mapped_attributes = []
+        warnings = []
+        unmapped_attributes = []
+        
+        # Process each attribute from the source object
+        source_object_attributes = source_object_data.get('attributes', [])
+        
+        for source_attr in source_object_attributes:
+            source_attr_def = source_attr.get('objectTypeAttribute', {})
+            attr_name = source_attr_def.get('name')
+            attr_values = source_attr.get('objectAttributeValues', [])
+            
+            if not attr_name or not attr_values:
+                continue
+            
+            # Check if target has an attribute with the same name
+            if attr_name in target_attr_map:
+                target_attr_def = target_attr_map[attr_name]
+                
+                # Check if attribute types are compatible
+                source_type = source_attr_def.get('type')
+                target_type = target_attr_def.get('type')
+                
+                if source_type != target_type:
+                    warnings.append(f"Attribute '{attr_name}' type mismatch: {source_type} → {target_type}")
+                
+                # Create the mapped attribute
+                try:
+                    mapped_attr = {
+                        "objectTypeAttributeId": target_attr_def['id'],
+                        "objectAttributeValues": []
+                    }
+                    
+                    # Copy attribute values
+                    for value_obj in attr_values:
+                        if 'value' in value_obj:
+                            mapped_attr["objectAttributeValues"].append({
+                                "value": str(value_obj['value'])
+                            })
+                    
+                    if mapped_attr["objectAttributeValues"]:  # Only add if has values
+                        mapped_attributes.append(mapped_attr)
+                        self.logger.debug(f"Mapped attribute '{attr_name}' with {len(mapped_attr['objectAttributeValues'])} values")
+                    
+                except Exception as e:
+                    warnings.append(f"Failed to map attribute '{attr_name}': {e}")
+                    unmapped_attributes.append(attr_name)
+            else:
+                # Attribute doesn't exist in target type
+                unmapped_attributes.append(attr_name)
+                self.logger.debug(f"Attribute '{attr_name}' not found in target object type")
+        
+        self.logger.info(f"Attribute mapping complete: {len(mapped_attributes)} mapped, {len(warnings)} warnings, {len(unmapped_attributes)} unmapped")
+        return mapped_attributes, warnings, unmapped_attributes
+    
+    def migrate_object_to_type(self, source_object: Dict[str, Any], target_object_type_id: int, 
+                             delete_original: bool = False) -> Dict[str, Any]:
+        """
+        Migrate an object to a different object type.
+        
+        Args:
+            source_object: The source object data
+            target_object_type_id: The target object type ID
+            delete_original: Whether to delete the original object after migration
+            
+        Returns:
+            Migration result with details
+            
+        Raises:
+            JiraAssetsAPIError: For API errors
+        """
+        source_object_key = source_object.get('objectKey', 'unknown')
+        source_object_id = source_object.get('id')
+        source_object_type = source_object.get('objectType', {})
+        source_object_type_id = source_object_type.get('id')
+        source_object_type_name = source_object_type.get('name', 'Unknown')
+        
+        self.logger.info(f"Migrating object {source_object_key} from type {source_object_type_id} to {target_object_type_id}")
+        
+        migration_result = {
+            'source_object_key': source_object_key,
+            'source_object_id': source_object_id,
+            'source_object_type_id': source_object_type_id,
+            'source_object_type_name': source_object_type_name,
+            'target_object_type_id': target_object_type_id,
+            'new_object_key': None,
+            'new_object_id': None,
+            'mapped_attributes': 0,
+            'warnings': [],
+            'unmapped_attributes': [],
+            'original_deleted': False,
+            'success': False,
+            'error': None
+        }
+        
+        try:
+            # Get source object type attributes for mapping context
+            source_attributes = self.get_object_attributes(source_object_type_id)
+            
+            # Map attributes from source to target type
+            mapped_attrs, warnings, unmapped_attrs = self.map_attributes_between_types(
+                source_attributes, source_object, target_object_type_id
+            )
+            
+            migration_result['mapped_attributes'] = len(mapped_attrs)
+            migration_result['warnings'] = warnings
+            migration_result['unmapped_attributes'] = unmapped_attrs
+            
+            # If delete_original is True, delete the original first to avoid constraint violations
+            if delete_original and source_object_id:
+                try:
+                    self.logger.info(f"Deleting original object {source_object_key} (ID: {source_object_id}) before creating new one")
+                    self.delete_object(source_object_id)
+                    migration_result['original_deleted'] = True
+                    self.logger.info(f"Successfully deleted original object {source_object_key}")
+                except Exception as e:
+                    error_msg = f"Failed to delete original object {source_object_key}: {e}"
+                    migration_result['error'] = error_msg
+                    self.logger.error(error_msg)
+                    raise JiraAssetsAPIError(error_msg)
+            
+            # Create the new object in the target type
+            new_object = self.create_object(target_object_type_id, mapped_attrs)
+            migration_result['new_object_key'] = new_object.get('objectKey')
+            migration_result['new_object_id'] = new_object.get('id')
+            
+            migration_result['success'] = True
+            self.logger.info(f"Successfully migrated {source_object_key} to {migration_result['new_object_key']}")
+            
+        except Exception as e:
+            error_msg = f"Migration failed for {source_object_key}: {e}"
+            migration_result['error'] = error_msg
+            self.logger.error(error_msg, exc_info=True)
+            raise JiraAssetsAPIError(error_msg)
+        
+        return migration_result

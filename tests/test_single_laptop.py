@@ -4,17 +4,18 @@ Test script to verify OAuth and Assets API functionality with a single laptop.
 This tests the complete flow: authentication, API access, user lookup, and attribute update.
 """
 
+import os
 import sys
-sys.path.append('src')
 
-from oauth_client import OAuthClient
-from jira_assets_client import JiraAssetsClient  
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from jira_assets_client import JiraAssetsClient
 from jira_user_client import JiraUserClient
-import requests
+
 
 def test_single_laptop():
-    """Test the complete flow with HW-410."""
-    print("🔧 Testing Jira Assets Manager with single laptop (HW-410)")
+    """Test the complete flow with HW-0002."""
+    print("🔧 Testing Jira Assets Manager with single laptop (HW-0002)")
     print("=" * 60)
     
     # Initialize clients
@@ -28,9 +29,9 @@ def test_single_laptop():
         return False
     
     # Get the test laptop object
-    print("\n2️⃣ Retrieving test laptop object (HW-410)...")
+    print("\n2️⃣ Retrieving test laptop object (HW-0002)...")
     try:
-        laptop = assets_client.get_object_by_key("HW-410")
+        laptop = assets_client.get_object_by_key("HW-0002")
         print(f"✅ Retrieved laptop: {laptop.get('label', 'N/A')}")
         
         # Extract key attributes
@@ -56,22 +57,22 @@ def test_single_laptop():
             print(f"✅ Found user: {user_info.get('displayName', 'N/A')} ({user_info.get('emailAddress', 'N/A')})")
             target_assignee = user_info.get('emailAddress')
         else:
-            print(f"⚠️  User not found in Jira - cannot update assignee")
+            print("⚠️  User not found in Jira - cannot update assignee")
             return True
     except Exception as e:
         print(f"❌ User lookup failed: {e}")
         return False
     
     # Check if update is needed
-    print(f"\n4️⃣ Checking if update is needed...")
+    print("\n4️⃣ Checking if update is needed...")
     if assignee == target_assignee:
-        print(f"✅ Assignee already matches User Email - no update needed")
+        print("✅ Assignee already matches User Email - no update needed")
         return True
     else:
         print(f"📝 Update needed: {assignee} → {target_assignee}")
     
     # Create attribute update
-    print(f"\n5️⃣ Creating attribute update...")
+    print("\n5️⃣ Creating attribute update...")
     try:
         object_type_id = laptop.get('objectType', {}).get('id')
         if not object_type_id:
@@ -84,14 +85,14 @@ def test_single_laptop():
             target_assignee, 
             object_type_id
         )
-        print(f"✅ Created attribute update structure")
+        print("✅ Created attribute update structure")
         
     except Exception as e:
         print(f"❌ Failed to create attribute update: {e}")
         return False
     
     # Perform the update (or dry run)
-    print(f"\n6️⃣ Performing update (DRY RUN)...")
+    print("\n6️⃣ Performing update (DRY RUN)...")
     try:
         object_id = laptop.get('id')
         print(f"   Object ID: {object_id}")
@@ -99,15 +100,15 @@ def test_single_laptop():
         print("   🚫 DRY RUN - Would call: assets_client.update_object(object_id, [attribute_update])")
         print(f"   📊 This would set Assignee = '{target_assignee}'")
         
-        print(f"\n✅ DRY RUN SUCCESSFUL!")
-        print(f"   The system can successfully:")
-        print(f"   - Authenticate with OAuth ✅")
-        print(f"   - Access Assets API ✅") 
-        print(f"   - Retrieve laptop objects ✅")
-        print(f"   - Extract User Email attribute ✅")
-        print(f"   - Look up users in Jira ✅")
-        print(f"   - Create attribute updates ✅")
-        print(f"   - Ready to perform actual updates ✅")
+        print("\n✅ DRY RUN SUCCESSFUL!")
+        print("   The system can successfully:")
+        print("   - Authenticate with OAuth ✅")
+        print("   - Access Assets API ✅") 
+        print("   - Retrieve laptop objects ✅")
+        print("   - Extract User Email attribute ✅")
+        print("   - Look up users in Jira ✅")
+        print("   - Create attribute updates ✅")
+        print("   - Ready to perform actual updates ✅")
         
     except Exception as e:
         print(f"❌ Update preparation failed: {e}")
@@ -118,10 +119,10 @@ def test_single_laptop():
 if __name__ == "__main__":
     success = test_single_laptop()
     if success:
-        print(f"\n🎉 ALL TESTS PASSED! The system is working correctly.")
-        print(f"   To perform actual updates, modify the script to call:")
-        print(f"   assets_client.update_object(object_id, [attribute_update])")
+        print("\n🎉 ALL TESTS PASSED! The system is working correctly.")
+        print("   To perform actual updates, modify the script to call:")
+        print("   assets_client.update_object(object_id, [attribute_update])")
     else:
-        print(f"\n💥 TESTS FAILED! Check the errors above.")
+        print("\n💥 TESTS FAILED! Check the errors above.")
     
     sys.exit(0 if success else 1)

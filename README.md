@@ -63,6 +63,8 @@ This tool solves the common problem of having user email addresses in Jira Asset
 
 ## Configuration
 
+For detailed technical documentation on bulk operations, schema discovery, and advanced features, see [docs/BULK_DATA_SCHEMA_DISCOVERY.md](docs/BULK_DATA_SCHEMA_DISCOVERY.md).
+
 ### Environment Variables
 
 Copy `.env.example` to `.env` and configure the following variables:
@@ -217,12 +219,12 @@ python src/main.py --help
 
 #### Test on a Specific Asset (Dry Run)
 ```bash
-python src/main.py --test-asset HW-459
+python src/main.py --test-asset HW-0003
 ```
 
 #### Test and Execute Update on Specific Asset
 ```bash
-python src/main.py --test-asset HW-459 --execute
+python src/main.py --test-asset HW-0003 --execute
 ```
 
 #### Preview Bulk Operation (Dry Run)
@@ -242,7 +244,7 @@ python src/main.py --bulk --batch-size 5 --execute
 
 #### Verbose Logging
 ```bash
-python src/main.py --test-asset HW-459 --verbose
+python src/main.py --test-asset HW-0003 --verbose
 ```
 
 #### Clear Caches Before Processing
@@ -254,7 +256,7 @@ python src/main.py --bulk --clear-cache --execute
 
 | Option | Description |
 |--------|-------------|
-| `--test-asset KEY` | Test processing on a specific asset (e.g., HW-459) |
+|| `--test-asset KEY` | Test processing on a specific asset (e.g., HW-0003) |
 | `--bulk` | Process all assets in Hardware/Laptops schema |
 | `--oauth-setup` | Set up OAuth 2.0 authentication (required for bulk operations) |
 | `--dry-run` | Preview changes without applying them (default) |
@@ -330,10 +332,10 @@ Bulk operations create backup files in the `backups/` directory:
 SUCCESS: Environment configuration validated
 INFO: DRY RUN mode - no changes will be applied
 
-INFO: Testing asset: HW-459 (dry_run=True)
+INFO: Testing asset: HW-0003 (dry_run=True)
 
 ============================================================
-Asset: HW-459
+Asset: HW-0003
 ============================================================
 User Email:          john.doe@company.com
 Current Assignee:    None
@@ -356,10 +358,10 @@ jira_assets_manager/
 │   ├── asset_manager.py      # High-level asset management
 │   ├── jira_assets_client.py # Jira Assets API client
 │   └── jira_user_client.py   # Jira User API client
-├── tests/                    # Test files (future)
+├── tests/                    # Test files
 ├── logs/                     # Application logs
 ├── backups/                  # Result and backup files
-├── docs/                     # Documentation
+├── docs/                     # Additional documentation
 ├── requirements.txt          # Python dependencies
 ├── .env.example             # Environment template
 ├── .env                     # Your configuration (not in git)
@@ -414,7 +416,7 @@ ERROR: Schema 'Hardware' not found
 
 **4. Asset Not Found**
 ```
-ERROR: Asset HW-459 not found
+ERROR: Asset HW-0003 not found
 ```
 **Solution**: Verify the asset key exists and you have access to it
 
@@ -428,7 +430,7 @@ WARNING: No user found with email: user@example.com
 
 Enable verbose logging for detailed debugging:
 ```bash
-python src/main.py --test-asset HW-459 --verbose
+python src/main.py --test-asset HW-0003 --verbose
 ```
 
 This will show:

@@ -5,9 +5,10 @@ This module handles loading and validation of environment variables
 and provides secure access to application configuration.
 """
 
-import os
 import logging
+import os
 from typing import Optional
+
 from dotenv import load_dotenv
 
 
@@ -131,6 +132,16 @@ class Config:
     def assignee_attribute(self) -> str:
         """Get the assignee attribute name."""
         return os.getenv('ASSIGNEE_ATTRIBUTE', 'Assignee')
+    
+    @property
+    def retirement_date_attribute(self) -> str:
+        """Get the retirement date attribute name."""
+        return os.getenv('RETIREMENT_DATE_ATTRIBUTE', 'Retirement Date')
+    
+    @property
+    def asset_status_attribute(self) -> str:
+        """Get the asset status attribute name."""
+        return os.getenv('ASSET_STATUS_ATTRIBUTE', 'Asset Status')
     
     @property
     def max_requests_per_minute(self) -> int:
