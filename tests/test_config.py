@@ -26,7 +26,7 @@ def test_config_placeholder_detection(monkeypatch):
     import config as cfg
 
     # Put a placeholder to trigger validation failure on reload
-    monkeypatch.setenv("JIRA_USER_EMAIL", "your.email@company.com")
+    monkeypatch.setenv("JIRA_USER_EMAIL", "your.email@domain.com.au")
     monkeypatch.setenv("ASSETS_WORKSPACE_ID", "1")
     monkeypatch.setenv("JIRA_DOMAIN", "example.atlassian.net")
     monkeypatch.setenv("JIRA_API_TOKEN", "dev_token")
