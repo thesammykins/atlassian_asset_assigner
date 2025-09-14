@@ -6,22 +6,23 @@ including attribute extraction, user email to accountId mapping,
 and attribute updates with validation.
 """
 
-import logging
-import json
 import csv
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Union, Tuple
+import logging
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from config import config
-from jira_user_client import JiraUserClient, UserNotFoundError, MultipleUsersFoundError, JiraUserAPIError
 from jira_assets_client import (
-    JiraAssetsClient, 
-    AssetNotFoundError, 
-    SchemaNotFoundError, 
+    AssetNotFoundError,
+    JiraAssetsClient,
     ObjectTypeNotFoundError,
-    AttributeNotFoundError,
-    JiraAssetsAPIError
+)
+from jira_user_client import (
+    JiraUserAPIError,
+    JiraUserClient,
+    MultipleUsersFoundError,
+    UserNotFoundError,
 )
 
 
@@ -80,7 +81,9 @@ class AssetManager:
         hardware_schema = self.get_hardware_schema()
         schema_id = hardware_schema['id']
         
-        return self.assets_client.get_object_type_by_name(schema_id, self.laptops_object_schema_name)
+        return self.assets_client.get_object_type_by_name(
+            schema_id, self.laptops_object_schema_name
+        )
     
     def extract_user_email(self, asset_data: Dict[str, Any]) -> Optional[str]:
         """
@@ -92,7 +95,9 @@ class AssetManager:
         Returns:
             User email address or None if not found
         """
-        email = self.assets_client.extract_attribute_value(asset_data, self.user_email_attribute)
+        email = self.assets_client.extract_attribute_value(
+            asset_data, self.user_email_attribute
+        )
         
         if email:
             # Normalize email for consistent processing
@@ -100,7 +105,9 @@ class AssetManager:
             self.logger.debug(f"Extracted user email: {email}")
             return email
         
-        self.logger.debug(f"No user email found in asset {asset_data.get('objectKey', 'unknown')}")
+        self.logger.debug(
+            f"No user email found in asset {asset_data.get('objectKey', 'unknown')}"
+        )
         return None
     
     def extract_current_assignee(self, asset_data: Dict[str, Any]) -> Optional[str]:
@@ -113,13 +120,17 @@ class AssetManager:
         Returns:
             Current assignee or None if not found
         """
-        assignee = self.assets_client.extract_attribute_value(asset_data, self.assignee_attribute)
+        assignee = self.assets_client.extract_attribute_value(
+            asset_data, self.assignee_attribute
+        )
         
         if assignee:
             self.logger.debug(f"Current assignee: {assignee}")
             return str(assignee)
         
-        self.logger.debug(f"No assignee found in asset {asset_data.get('objectKey', 'unknown')}")
+        self.logger.debug(
+            f"No assignee found in asset {asset_data.get('objectKey', 'unknown')}"
+        )
         return None
     
     def lookup_user_account_id(self, email: str) -> str:
@@ -163,7 +174,9 @@ class AssetManager:
         """
         return self.user_client.validate_account_id(account_id)
     
-    def create_assignee_update(self, asset_data: Dict[str, Any], account_id: str) -> Dict[str, Any]:
+    def create_assignee_update(
+        self, asset_data: Dict[str, Any], account_id: str
+    ) -> Dict[str, Any]:
         """
         Create an attribute update to set the assignee.
         
@@ -230,7 +243,9 @@ class AssetManager:
             
             if not user_email:
                 result['skipped'] = True
-                result['skip_reason'] = f"No '{self.user_email_attribute}' attribute found"
+                result['skip_reason'] = (
+                    f"No '{self.user_email_attribute}' attribute found"
+                )
                 self.logger.warning(f"Skipping {object_key}: {result['skip_reason']}")
                 return result
             
@@ -267,23 +282,38 @@ class AssetManager:
             
             # 7. Update assignee (unless dry run)
             if not dry_run:
-                self.logger.info(f"Step 4: Updating assignee for {object_key} to {account_id}")
+                self.logger.info(
+                    f"Step 4: Updating assignee for {object_key} to {account_id}"
+                )
                 
                 attribute_update = self.create_assignee_update(asset_data, account_id)
                 object_id = asset_data['id']
                 
-                updated_asset = self.assets_client.update_object(object_id, [attribute_update])
+                updated_asset = self.assets_client.update_object(
+                    object_id, [attribute_update]
+                )
                 result['updated'] = True
                 
-                # Verify the update - for user attributes, we need to check if update was successful
+                # Verify the update - for user attributes, we need to check if
+                # update was successful
                 # rather than comparing exact values as Assets API returns display names
-                updated_assignee = self.assets_client.extract_attribute_value(updated_asset, self.assignee_attribute)
+                updated_assignee = self.assets_client.extract_attribute_value(
+                    updated_asset, self.assignee_attribute
+                )
                 if updated_assignee is None:
-                    raise AssetUpdateError(f"Update verification failed: assignee is still None after update")
+                    raise AssetUpdateError(
+                        "Update verification failed: assignee is still None after update"
+                    )
                 
-                self.logger.info(f"Successfully updated {object_key} assignee from '{current_assignee}' to '{account_id}' (displays as: {updated_assignee})")
+                self.logger.info(
+                    f"Successfully updated {object_key} assignee from "
+                    f"'{current_assignee}' to '{account_id}' (displays as: {updated_assignee})"
+                )
             else:
-                self.logger.info(f"Dry run: Would update {object_key} assignee from '{current_assignee}' to '{account_id}'")
+                self.logger.info(
+                    f"Dry run: Would update {object_key} assignee from "
+                    f"'{current_assignee}' to '{account_id}'"
+                )
             
             result['success'] = True
             return result
@@ -324,7 +354,7 @@ class AssetManager:
         self.logger.info(f"Retrieving all {self.laptops_object_schema_name} objects from {self.hardware_schema_name} schema")
         
         laptops_object_type = self.get_laptops_object_type()
-        object_type_id = laptops_object_type['id']
+        laptops_object_type['id']
         
         # Use AQL to find all objects of this type
         aql_query = f'objectType = \"{self.laptops_object_schema_name}\"'
@@ -579,7 +609,7 @@ class AssetManager:
         self.logger.info(f"Retrieving all {self.laptops_object_schema_name} objects with retirement dates")
         
         laptops_object_type = self.get_laptops_object_type()
-        object_type_id = laptops_object_type['id']
+        laptops_object_type['id']
         
         # Use AQL to find all laptop objects that have a retirement date
         aql_query = f'objectType = \"{self.laptops_object_schema_name}\" AND \"{self.retirement_date_attribute}\" IS NOT EMPTY'
@@ -809,8 +839,8 @@ class AssetManager:
             else:
                 # No encoding worked
                 raise ValidationError(
-                    f"Unable to read CSV file with any supported encoding. "
-                    f"Please ensure the file is in UTF-8, UTF-8 with BOM, ISO-8859-1, or CP1252 format."
+                    "Unable to read CSV file with any supported encoding. "
+                    "Please ensure the file is in UTF-8, UTF-8 with BOM, ISO-8859-1, or CP1252 format."
                 )
         
         except (IOError, OSError) as e:

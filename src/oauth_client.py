@@ -8,14 +8,15 @@ Based on Atlassian's OAuth 2.0 (3LO) implementation:
 https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/
 """
 
-import os
 import json
 import logging
-import webbrowser
+import os
 import urllib.parse
-from typing import Dict, Optional, Any
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlencode, parse_qs
+import webbrowser
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any, Dict, Optional
+from urllib.parse import parse_qs
+
 import requests
 from requests_oauthlib import OAuth2Session
 

@@ -1,10 +1,10 @@
 [tool.black]
-line-length = 88
+line-length = 170
 target-version = ["py313"]
 include = "\\.pyi?$"
 
 [tool.ruff]
-line-length = 88
+line-length = 170
 target-version = "py313"
 exclude = [
   "venv",

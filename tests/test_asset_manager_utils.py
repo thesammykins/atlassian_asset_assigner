@@ -48,6 +48,7 @@ cd 456
 
 def test_parse_serial_numbers_from_csv_missing_column(tmp_path: Path):
     import pytest
+
     from asset_manager import AssetManager, ValidationError
 
     p = tmp_path / "bad.csv"

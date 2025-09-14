@@ -7,9 +7,9 @@ including user search by email address and account management.
 
 import logging
 import time
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict
+
 import requests
-from urllib.parse import quote
 
 from config import config
 from oauth_client import OAuthClient, TokenError

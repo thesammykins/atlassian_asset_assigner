@@ -10,9 +10,9 @@ __author__ = "Assistant"
 __email__ = "assistant@example.com"
 
 from .asset_manager import AssetManager, AssetUpdateError, ValidationError
-from .jira_assets_client import JiraAssetsClient, JiraAssetsAPIError, AssetNotFoundError
-from .jira_user_client import JiraUserClient, JiraUserAPIError, UserNotFoundError
-from .config import config, setup_logging, ConfigurationError
+from .config import ConfigurationError, config, setup_logging
+from .jira_assets_client import AssetNotFoundError, JiraAssetsAPIError, JiraAssetsClient
+from .jira_user_client import JiraUserAPIError, JiraUserClient, UserNotFoundError
 
 __all__ = [
     'AssetManager',

@@ -10,10 +10,9 @@ Reference: https://developer.atlassian.com/cloud/assets/rest/api-group-object/
 
 import logging
 import time
-import json
-from typing import Dict, List, Optional, Any, Union, Tuple
+from typing import Any, Dict, List, Tuple
+
 import requests
-from urllib.parse import quote
 
 from config import config
 from oauth_client import OAuthClient, TokenError

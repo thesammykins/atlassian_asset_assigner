@@ -5,10 +5,12 @@ This tests the complete retirement flow: authentication, API access, retirement 
 """
 
 import sys
+
 sys.path.append('src')
 
+
 from asset_manager import AssetManager
-import requests
+
 
 def test_retirement():
     """Test the retirement workflow with HW-493."""
@@ -29,7 +31,7 @@ def test_retirement():
     try:
         result = manager.process_retirement("HW-493", dry_run=True)
         
-        print(f"✅ Retirement processing completed")
+        print("✅ Retirement processing completed")
         print(f"   Asset: {result.get('object_key', 'N/A')}")
         print(f"   Retirement Date: {result.get('retirement_date', 'N/A')}")
         print(f"   Current Status: {result.get('current_status', 'N/A')}")
@@ -78,26 +80,26 @@ def test_retirement():
         print(f"❌ Bulk retirement discovery failed: {e}")
         return False
     
-    print(f"\n✅ ALL TESTS PASSED! The retirement system is working correctly.")
-    print(f"   The system can successfully:")
-    print(f"   - Authenticate with OAuth ✅")
-    print(f"   - Access Assets API ✅")
-    print(f"   - Retrieve laptop objects with AQL queries ✅")
-    print(f"   - Extract retirement date attributes ✅")
-    print(f"   - Extract asset status attributes ✅")
-    print(f"   - Filter already-retired assets ✅")
-    print(f"   - Create status attribute updates ✅")
-    print(f"   - Process both single and bulk retirements ✅")
+    print("\n✅ ALL TESTS PASSED! The retirement system is working correctly.")
+    print("   The system can successfully:")
+    print("   - Authenticate with OAuth ✅")
+    print("   - Access Assets API ✅")
+    print("   - Retrieve laptop objects with AQL queries ✅")
+    print("   - Extract retirement date attributes ✅")
+    print("   - Extract asset status attributes ✅")
+    print("   - Filter already-retired assets ✅")
+    print("   - Create status attribute updates ✅")
+    print("   - Process both single and bulk retirements ✅")
     
     return True
 
 if __name__ == "__main__":
     success = test_retirement()
     if success:
-        print(f"\n🎉 RETIREMENT FUNCTIONALITY TESTS PASSED!")
-        print(f"   To perform actual retirement updates:")
-        print(f"   python3 src/main.py --retire-assets --execute")
+        print("\n🎉 RETIREMENT FUNCTIONALITY TESTS PASSED!")
+        print("   To perform actual retirement updates:")
+        print("   python3 src/main.py --retire-assets --execute")
     else:
-        print(f"\n💥 RETIREMENT TESTS FAILED! Check the errors above.")
+        print("\n💥 RETIREMENT TESTS FAILED! Check the errors above.")
     
     sys.exit(0 if success else 1)

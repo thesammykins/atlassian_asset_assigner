@@ -5,9 +5,10 @@ This module handles loading and validation of environment variables
 and provides secure access to application configuration.
 """
 
-import os
 import logging
+import os
 from typing import Optional
+
 from dotenv import load_dotenv
 
 

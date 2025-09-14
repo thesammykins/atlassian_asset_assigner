@@ -20,40 +20,29 @@ Usage:
     python main.py --retire-assets --execute # Execute retirement operation
 """
 
-import sys
-import os
 import argparse
 import json
-from pathlib import Path
-from typing import Dict, List, Any, Optional
+import os
+import sys
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List
+
 import colorama
-from colorama import Fore, Style, Back
+from colorama import Fore, Style
 from tqdm import tqdm
 
 # Add src directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import config
-from config import setup_logging, ConfigurationError
-import asset_manager
-from asset_manager import (
-    AssetManager, 
-    AssetUpdateError, 
-    ValidationError
-)
-import jira_assets_client
+from asset_manager import AssetManager, AssetUpdateError, ValidationError
+from config import ConfigurationError, setup_logging
 from jira_assets_client import (
     AssetNotFoundError,
-    SchemaNotFoundError,
+    JiraAssetsAPIError,
     ObjectTypeNotFoundError,
-    JiraAssetsAPIError
-)
-import jira_user_client
-from jira_user_client import (
-    UserNotFoundError,
-    MultipleUsersFoundError,
-    JiraUserAPIError
+    SchemaNotFoundError,
 )
 from oauth_client import OAuthClient, OAuthError, OAuthFlowError, TokenError
 
@@ -593,8 +582,8 @@ def setup_oauth_authentication():
         
         # Check if we already have valid tokens
         try:
-            access_token = oauth_client.get_valid_access_token()
-            print_success(f"OAuth 2.0 already configured with valid token")
+            oauth_client.get_valid_access_token()
+            print_success("OAuth 2.0 already configured with valid token")
             print_info("You can now use bulk operations that require schema access")
             return True
         except TokenError:
@@ -605,7 +594,7 @@ def setup_oauth_authentication():
         print()
         
         # Perform authorization
-        access_token = oauth_client.authorize()
+        oauth_client.authorize()
         
         print()
         print_success("OAuth 2.0 setup completed successfully!")

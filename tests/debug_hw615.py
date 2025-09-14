@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
-import sys
 import os
+import sys
 
 # Add the src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from jira_assets_client import JiraAssetsClient
+
 
 def main():
     client = JiraAssetsClient()
@@ -47,13 +48,13 @@ def main():
                 print(f"  Error: {e}")
                 
         # Try case-insensitive and wildcards
-        print(f"\n=== Testing case-insensitive and wildcards ===")
+        print("\n=== Testing case-insensitive and wildcards ===")
         test_queries = [
             f'objectType = {object_type_id} AND "Serial Number" LIKE "SERIAL-EXAMPLE-1"',
             f'objectType = {object_type_id} AND "Serial Number" ~ "SERIAL-EXAMPLE-1"',
             f'objectType = {object_type_id} AND "Serial Number" LIKE "serial-example-1"',
             f'objectType = {object_type_id} AND "Serial Number" = "serial-example-1"',
-            f'Key = "HW-0001"',
+            'Key = "HW-0001"',
             f'objectType = {object_type_id} AND Key = "HW-0001"',
         ]
         
@@ -69,12 +70,12 @@ def main():
                 print(f"  Error: {e}")
         
         # Test objectType as string
-        print(f"\n=== Testing objectType as string ===")
+        print("\n=== Testing objectType as string ===")
         string_queries = [
             f'objectType = "{object_type_id}" AND Key = "HW-0001"',
             f'objectType = "{object_type_id}" AND "Serial Number" = "SERIAL-EXAMPLE-1"',
-            f'objectType = "8" AND Key = "HW-0001"',
-            f'objectType = "8" AND "Serial Number" = "SERIAL-EXAMPLE-1"',
+            'objectType = "8" AND Key = "HW-0001"',
+            'objectType = "8" AND "Serial Number" = "SERIAL-EXAMPLE-1"',
         ]
         
         for query in string_queries:
@@ -121,10 +122,10 @@ def main():
                     print(f"  Error: {e}")
         
         # Try searching for serial number without object type constraint
-        print(f"\n=== Testing serial number without object type ===")
+        print("\n=== Testing serial number without object type ===")
         global_queries = [
-            f'"Serial Number" = "SERIAL-EXAMPLE-1"',
-            f'"Serial Number" LIKE "SERIAL-EXAMPLE-1"',
+            '"Serial Number" = "SERIAL-EXAMPLE-1"',
+            '"Serial Number" LIKE "SERIAL-EXAMPLE-1"',
         ]
         
         for query in global_queries:
