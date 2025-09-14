@@ -5,7 +5,8 @@ This tests the complete flow: authentication, API access, user lookup, and attri
 """
 
 import sys
-sys.path.append('src')
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from oauth_client import OAuthClient
 from jira_assets_client import JiraAssetsClient  
@@ -13,8 +14,8 @@ from jira_user_client import JiraUserClient
 import requests
 
 def test_single_laptop():
-    """Test the complete flow with HW-410."""
-    print("🔧 Testing Jira Assets Manager with single laptop (HW-410)")
+    """Test the complete flow with HW-0002."""
+    print("🔧 Testing Jira Assets Manager with single laptop (HW-0002)")
     print("=" * 60)
     
     # Initialize clients
@@ -28,9 +29,9 @@ def test_single_laptop():
         return False
     
     # Get the test laptop object
-    print("\n2️⃣ Retrieving test laptop object (HW-410)...")
+    print("\n2️⃣ Retrieving test laptop object (HW-0002)...")
     try:
-        laptop = assets_client.get_object_by_key("HW-410")
+        laptop = assets_client.get_object_by_key("HW-0002")
         print(f"✅ Retrieved laptop: {laptop.get('label', 'N/A')}")
         
         # Extract key attributes

@@ -395,7 +395,7 @@ class JiraAssetsClient:
     
     def get_object_by_key(self, object_key: str) -> Dict[str, Any]:
         """
-        Get an object by its key (e.g., HW-459).
+        Get an object by its key (e.g., HW-0003).
         
         Args:
             object_key: The object key

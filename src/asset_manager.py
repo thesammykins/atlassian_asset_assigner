@@ -190,7 +190,7 @@ class AssetManager:
         Process a single asset: extract email, lookup user, and update assignee.
         
         Args:
-            object_key: The asset object key (e.g., HW-459)
+            object_key: The asset object key (e.g., HW-0003)
             dry_run: If True, don't actually update the asset
             
         Returns:

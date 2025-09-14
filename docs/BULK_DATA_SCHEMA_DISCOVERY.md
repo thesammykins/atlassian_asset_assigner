@@ -940,7 +940,7 @@ ERROR: OAuth token expired and refresh failed
 Enable verbose logging to see detailed API interactions:
 
 ```bash
-python src/main.py --test-asset HW-459 --verbose
+python src/main.py --test-asset HW-0003 --verbose
 ```
 
 **Debug Output Includes:**
@@ -969,8 +969,8 @@ print(f"Skip Reasons: {summary['skip_reasons']}")
 
 ## Related Documentation
 
-- [README.md](README.md) - General usage and setup instructions
-- [WARP.md](WARP.md) - Development and architecture guide
+- [README.md](../README.md) - General usage and setup instructions
+- [WARP.md](../WARP.md) - Development and architecture guide
 - [`src/jira_assets_client.py`](src/jira_assets_client.py) - Assets API client implementation
 - [`src/asset_manager.py`](src/asset_manager.py) - High-level asset processing logic
 - [`src/main.py`](src/main.py) - CLI interface and bulk processing orchestration

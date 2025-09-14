@@ -4,18 +4,18 @@ import sys
 import os
 
 # Add the src directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from jira_assets_client import JiraAssetsClient
 
 def main():
     client = JiraAssetsClient()
     
-    print("=== Debugging HW-615 Asset ===")
+    print("=== Debugging HW-0001 Asset ===")
     
     try:
-        # Get HW-615
-        hw615 = client.get_object_by_key('HW-615')
+        # Get HW-0001
+        hw615 = client.get_object_by_key('HW-0001')
         print(f"Asset Key: {hw615.get('objectKey')}")
         print(f"Asset ID: {hw615.get('id')}")
         ot = hw615.get('objectType', {})
@@ -35,7 +35,7 @@ def main():
         
         print(f"\n=== Testing AQL Queries for Object Type {object_type_id} ===")
         for serial_attr in serial_variations:
-            query = f'objectType = {object_type_id} AND "{serial_attr}" = "C07GX1C5Q6NW"'
+            query = f'objectType = {object_type_id} AND "{serial_attr}" = "SERIAL-EXAMPLE-1"'
             print(f"\nTrying: {query}")
             try:
                 result = client.find_objects_by_aql(query, limit=5)
@@ -49,12 +49,12 @@ def main():
         # Try case-insensitive and wildcards
         print(f"\n=== Testing case-insensitive and wildcards ===")
         test_queries = [
-            f'objectType = {object_type_id} AND "Serial Number" LIKE "C07GX1C5Q6NW"',
-            f'objectType = {object_type_id} AND "Serial Number" ~ "C07GX1C5Q6NW"',
-            f'objectType = {object_type_id} AND "Serial Number" LIKE "c07gx1c5q6nw"',
-            f'objectType = {object_type_id} AND "Serial Number" = "c07gx1c5q6nw"',
-            f'Key = "HW-615"',
-            f'objectType = {object_type_id} AND Key = "HW-615"',
+            f'objectType = {object_type_id} AND "Serial Number" LIKE "SERIAL-EXAMPLE-1"',
+            f'objectType = {object_type_id} AND "Serial Number" ~ "SERIAL-EXAMPLE-1"',
+            f'objectType = {object_type_id} AND "Serial Number" LIKE "serial-example-1"',
+            f'objectType = {object_type_id} AND "Serial Number" = "serial-example-1"',
+            f'Key = "HW-0001"',
+            f'objectType = {object_type_id} AND Key = "HW-0001"',
         ]
         
         for query in test_queries:
@@ -71,10 +71,10 @@ def main():
         # Test objectType as string
         print(f"\n=== Testing objectType as string ===")
         string_queries = [
-            f'objectType = "{object_type_id}" AND Key = "HW-615"',
-            f'objectType = "{object_type_id}" AND "Serial Number" = "C07GX1C5Q6NW"',
-            f'objectType = "8" AND Key = "HW-615"',
-            f'objectType = "8" AND "Serial Number" = "C07GX1C5Q6NW"',
+            f'objectType = "{object_type_id}" AND Key = "HW-0001"',
+            f'objectType = "{object_type_id}" AND "Serial Number" = "SERIAL-EXAMPLE-1"',
+            f'objectType = "8" AND Key = "HW-0001"',
+            f'objectType = "8" AND "Serial Number" = "SERIAL-EXAMPLE-1"',
         ]
         
         for query in string_queries:
@@ -98,10 +98,10 @@ def main():
         if parent_id:
             print(f"\n=== Testing with parent object type {parent_id} ===")
             parent_queries = [
-                f'objectType = {parent_id} AND Key = "HW-615"',
-                f'objectType = {parent_id} AND "Serial Number" = "C07GX1C5Q6NW"',
-                f'objectType = "{parent_id}" AND Key = "HW-615"',
-                f'objectType = "{parent_id}" AND "Serial Number" = "C07GX1C5Q6NW"',
+                f'objectType = {parent_id} AND Key = "HW-0001"',
+                f'objectType = {parent_id} AND "Serial Number" = "SERIAL-EXAMPLE-1"',
+                f'objectType = "{parent_id}" AND Key = "HW-0001"',
+                f'objectType = "{parent_id}" AND "Serial Number" = "SERIAL-EXAMPLE-1"',
             ]
             
             for query in parent_queries:
@@ -123,8 +123,8 @@ def main():
         # Try searching for serial number without object type constraint
         print(f"\n=== Testing serial number without object type ===")
         global_queries = [
-            f'"Serial Number" = "C07GX1C5Q6NW"',
-            f'"Serial Number" LIKE "C07GX1C5Q6NW"',
+            f'"Serial Number" = "SERIAL-EXAMPLE-1"',
+            f'"Serial Number" LIKE "SERIAL-EXAMPLE-1"',
         ]
         
         for query in global_queries:

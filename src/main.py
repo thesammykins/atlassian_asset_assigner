@@ -13,7 +13,7 @@ Features:
 - Dry-run mode for safe testing before applying changes
 
 Usage:
-    python main.py --test-asset HW-459       # Test on specific asset
+    python main.py --test-asset HW-0003      # Test on specific asset
     python main.py --bulk --dry-run          # Preview bulk assignee operation
     python main.py --bulk --execute          # Execute bulk assignee operation
     python main.py --retire-assets --dry-run # Preview retirement operation
@@ -459,8 +459,8 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s --test-asset HW-459              Test on specific asset
-  %(prog)s --test-asset HW-459 --execute   Test and execute update
+  %(prog)s --test-asset HW-0003             Test on specific asset
+  %(prog)s --test-asset HW-0003 --execute  Test and execute update
   %(prog)s --bulk --dry-run                Preview bulk operation
   %(prog)s --bulk                          Execute bulk operation
   %(prog)s --bulk --batch-size 5           Process in smaller batches
@@ -477,7 +477,7 @@ Examples:
     group.add_argument(
         '--test-asset',
         metavar='KEY',
-        help='Test processing on a specific asset (e.g., HW-459)'
+        help='Test processing on a specific asset (e.g., HW-0003)'
     )
     group.add_argument(
         '--bulk',
