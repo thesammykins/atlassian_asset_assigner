@@ -35,16 +35,15 @@ from tqdm import tqdm
 # Add src directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from . import config
-from .asset_manager import AssetManager, AssetUpdateError, ValidationError
-from .config import ConfigurationError, setup_logging
-from .jira_assets_client import (
+from asset_manager import AssetManager, AssetUpdateError, ValidationError
+from config import ConfigurationError, setup_logging, config
+from jira_assets_client import (
     AssetNotFoundError,
     JiraAssetsAPIError,
     ObjectTypeNotFoundError,
     SchemaNotFoundError,
 )
-from .oauth_client import OAuthClient, OAuthError, OAuthFlowError, TokenError
+from oauth_client import OAuthClient, OAuthError, OAuthFlowError, TokenError
 
 # Initialize colorama for cross-platform colored output
 colorama.init()
