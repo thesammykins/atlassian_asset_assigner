@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import config
+from cache_manager import cache_manager
 from jira_assets_client import (
     AssetNotFoundError,
     JiraAssetsAPIError,
@@ -1034,6 +1035,8 @@ class AssetManager:
         """
         Get list of unique model names from existing laptop assets.
         
+        Uses 24-hour caching to improve performance on subsequent calls.
+        
         Returns:
             Sorted list of unique model names
             
@@ -1042,6 +1045,15 @@ class AssetManager:
             ObjectTypeNotFoundError: If Laptops object type is not found
             JiraAssetsAPIError: For other API errors
         """
+        # Check cache first
+        cache_key = "models_list"
+        cached_models = cache_manager.get_cached_data(cache_key)
+        
+        if cached_models is not None:
+            self.logger.info(f"Using {len(cached_models)} models from cache")
+            return cached_models
+        
+        # Not in cache, load from API
         self.logger.info("Retrieving unique model names from existing assets")
         
         try:
@@ -1095,6 +1107,10 @@ class AssetManager:
             sorted_models = sorted(model_names, key=str.lower)
             
             self.logger.info(f"Retrieved {len(sorted_models)} unique model names from {len(all_objects)} objects")
+            
+            # Cache the results for future use (24-hour TTL)
+            cache_manager.cache_data(cache_key, sorted_models)
+            
             return sorted_models
             
         except Exception as e:
@@ -1108,6 +1124,8 @@ class AssetManager:
         Since the status attribute uses typeValueMulti with status IDs,
         we extract status names from existing assets that have status values.
         
+        Uses 24-hour caching to improve performance on subsequent calls.
+        
         Returns:
             Sorted list of status names
             
@@ -1116,6 +1134,15 @@ class AssetManager:
             ObjectTypeNotFoundError: If Laptops object type is not found
             JiraAssetsAPIError: For other API errors
         """
+        # Check cache first
+        cache_key = "statuses_list"
+        cached_statuses = cache_manager.get_cached_data(cache_key)
+        
+        if cached_statuses is not None:
+            self.logger.info(f"Using {len(cached_statuses)} statuses from cache")
+            return cached_statuses
+        
+        # Not in cache, load from API
         self.logger.info("Retrieving available status options for laptop assets")
         
         try:
@@ -1167,6 +1194,10 @@ class AssetManager:
             sorted_statuses = sorted(status_names)
             
             self.logger.info(f"Retrieved {len(sorted_statuses)} status options from {len(objects)} objects")
+            
+            # Cache the results for future use (24-hour TTL)
+            cache_manager.cache_data(cache_key, sorted_statuses)
+            
             return sorted_statuses
             
         except Exception as e:
@@ -1177,6 +1208,8 @@ class AssetManager:
         """
         Get list of available suppliers from the Suppliers object type.
         
+        Uses 24-hour caching to improve performance on subsequent calls.
+        
         Returns:
             List of dictionaries with 'name' and 'key' fields for each supplier
             
@@ -1185,6 +1218,15 @@ class AssetManager:
             ObjectTypeNotFoundError: If Suppliers object type is not found
             JiraAssetsAPIError: For other API errors
         """
+        # Check cache first
+        cache_key = "suppliers_list"
+        cached_suppliers = cache_manager.get_cached_data(cache_key)
+        
+        if cached_suppliers is not None:
+            self.logger.info(f"Using {len(cached_suppliers)} suppliers from cache")
+            return cached_suppliers
+        
+        # Not in cache, load from API
         self.logger.info("Retrieving available suppliers")
         
         try:
@@ -1255,6 +1297,10 @@ class AssetManager:
             supplier_list.sort(key=lambda x: x['name'].lower())
             
             self.logger.info(f"Retrieved {len(supplier_list)} suppliers")
+            
+            # Cache the results for future use (24-hour TTL)
+            cache_manager.cache_data(cache_key, supplier_list)
+            
             return supplier_list
             
         except Exception as e:
@@ -1332,6 +1378,11 @@ class AssetManager:
             }
             
             self.logger.info(f"Successfully created supplier '{supplier_name}' with key: {supplier_key}")
+            
+            # Invalidate the suppliers cache since we created a new supplier
+            cache_manager.invalidate_cache("suppliers_list")
+            self.logger.debug("Invalidated suppliers cache due to new supplier creation")
+            
             return supplier_dict
             
         except Exception as e:
@@ -1371,6 +1422,49 @@ class AssetManager:
         except Exception as e:
             self.logger.error(f"Failed to resolve or create supplier '{supplier_name}': {e}")
             raise
+    
+    def clear_caches(self):
+        """
+        Clear all caches used by the asset manager.
+        
+        This method clears caches for models, statuses, and suppliers.
+        Useful for forcing fresh data retrieval on next access.
+        """
+        cache_keys = ["models_list", "statuses_list", "suppliers_list"]
+        total_cleared = 0
+        
+        for cache_key in cache_keys:
+            cleared = cache_manager.invalidate_cache(cache_key)
+            total_cleared += cleared
+        
+        self.logger.info(f"Cleared {total_cleared} cache files")
+        
+        # Also clear the user client and assets client caches
+        if hasattr(self.user_client, 'clear_cache'):
+            self.user_client.clear_cache()
+        
+        if hasattr(self.assets_client, 'clear_cache'):
+            self.assets_client.clear_cache()
+        
+        return total_cleared
+    
+    def get_cache_info(self) -> Dict[str, Any]:
+        """
+        Get information about current cache state.
+        
+        Returns:
+            Dictionary with cache statistics and file information
+        """
+        return cache_manager.get_cache_info()
+    
+    def cleanup_expired_cache(self) -> int:
+        """
+        Remove expired cache files.
+        
+        Returns:
+            Number of expired files removed
+        """
+        return cache_manager.cleanup_expired_cache()
     
     def resolve_status_name_to_id(self, status_name: str) -> str:
         """

@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import config
 from asset_manager import AssetManager, AssetUpdateError, ValidationError
+from cache_manager import cache_manager
 from config import ConfigurationError, setup_logging
 from jira_assets_client import (
     AssetNotFoundError,
@@ -493,6 +494,16 @@ Examples:
         action='store_true',
         help='Migrate assets between object types using CSV file with SERIAL_NUMBER column'
     )
+    group.add_argument(
+        '--cache-info',
+        action='store_true',
+        help='Show cache information and statistics'
+    )
+    group.add_argument(
+        '--cache-cleanup',
+        action='store_true',
+        help='Remove expired cache files (older than 24 hours)'
+    )
     
     # Execution options
     parser.add_argument(
@@ -561,6 +572,59 @@ Examples:
     )
     
     return parser
+
+
+def show_cache_info(asset_manager: AssetManager):
+    """Show cache information and statistics."""
+    try:
+        cache_info = asset_manager.get_cache_info()
+        
+        print_info("Cache Information")
+        print(f"{'='*60}")
+        print(f"{'Cache Directory:':<20} {cache_info['cache_directory']}")
+        print(f"{'Cache TTL:':<20} {cache_info['cache_ttl_hours']} hours")
+        print(f"{'Total Files:':<20} {cache_info['total_cache_files']}")
+        print(f"{'Valid Files:':<20} {cache_info['valid_cache_files']}")
+        print(f"{'Expired Files:':<20} {cache_info['expired_cache_files']}")
+        print()
+        
+        if cache_info['cache_files']:
+            print_info("Cache Files Details:")
+            print(f"{'Name':<30} {'Age (hrs)':<10} {'Status':<10} {'Size (bytes)':<12}")
+            print('-' * 64)
+            
+            for file_info in cache_info['cache_files']:
+                status = "✓ Valid" if file_info['is_valid'] else "✗ Expired"
+                color = Fore.GREEN if file_info['is_valid'] else Fore.RED
+                
+                print(f"{file_info['name']:<30} {file_info['age_hours']:<10.1f} {color}{status:<10}{Style.RESET_ALL} {file_info['size_bytes']:<12}")
+        else:
+            print_info("No cache files found")
+            
+        return True
+        
+    except Exception as e:
+        print_error(f"Failed to get cache information: {e}")
+        return False
+
+
+def cleanup_cache(asset_manager: AssetManager):
+    """Clean up expired cache files."""
+    try:
+        print_info("Cleaning up expired cache files...")
+        
+        removed_count = asset_manager.cleanup_expired_cache()
+        
+        if removed_count > 0:
+            print_success(f"Removed {removed_count} expired cache files")
+        else:
+            print_info("No expired cache files found")
+            
+        return True
+        
+    except Exception as e:
+        print_error(f"Failed to cleanup cache: {e}")
+        return False
 
 
 def setup_oauth_authentication():
@@ -1290,6 +1354,20 @@ def main():
                     return 1
             else:
                 print_error("CSV migration failed")
+                return 1
+                
+        elif args.cache_info:
+            # Show cache information
+            if show_cache_info(asset_manager):
+                return 0
+            else:
+                return 1
+                
+        elif args.cache_cleanup:
+            # Clean up expired cache files
+            if cleanup_cache(asset_manager):
+                return 0
+            else:
                 return 1
                 
     except KeyboardInterrupt:
