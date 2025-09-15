@@ -73,3 +73,6 @@ dmypy.json
 # Beep/Boop coordination files
 beep
 boop
+
+# Local cache data
+cache/
