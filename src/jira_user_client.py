@@ -11,8 +11,8 @@ from typing import Any, Dict
 
 import requests
 
-from config import config
-from oauth_client import OAuthClient, TokenError
+from .config import config
+from .oauth_client import OAuthClient, TokenError
 
 
 class JiraUserAPIError(Exception):

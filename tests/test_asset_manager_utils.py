@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_get_processing_summary_groups_counts():
-    from asset_manager import AssetManager
+    from src.asset_manager import AssetManager
 
     manager = AssetManager()
 
@@ -27,7 +27,7 @@ def test_get_processing_summary_groups_counts():
 
 
 def test_parse_serial_numbers_from_csv_normalizes_and_dedupes(tmp_path: Path):
-    from asset_manager import AssetManager
+    from src.asset_manager import AssetManager
 
     p = tmp_path / "serials.csv"
     p.write_text(
@@ -49,7 +49,7 @@ cd 456
 def test_parse_serial_numbers_from_csv_missing_column(tmp_path: Path):
     import pytest
 
-    from asset_manager import AssetManager, ValidationError
+    from src.asset_manager import AssetManager, ValidationError
 
     p = tmp_path / "bad.csv"
     p.write_text("""SOMETHING_ELSE\nabc\n""", encoding="utf-8")

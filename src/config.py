@@ -216,12 +216,12 @@ class Config:
     @property
     def oauth_redirect_uri(self) -> str:
         """Get the OAuth redirect URI."""
-        return os.getenv('OAUTH_REDIRECT_URI', 'http://localhost:8080/callback')
+        return os.getenv('OAUTH_REDIRECT_URI', '')
     
     @property
     def oauth_scopes(self) -> str:
         """Get the OAuth scopes."""
-        return os.getenv('OAUTH_SCOPES', 'read:jira-user read:cmdb-object:jira read:cmdb-schema:jira write:cmdb-object:jira')
+        return os.getenv('OAUTH_SCOPES', '')
     
     def get_basic_auth(self) -> tuple[str, str]:
         """

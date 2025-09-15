@@ -35,16 +35,16 @@ from tqdm import tqdm
 # Add src directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import config
-from asset_manager import AssetManager, AssetUpdateError, ValidationError
-from config import ConfigurationError, setup_logging
-from jira_assets_client import (
+from . import config
+from .asset_manager import AssetManager, AssetUpdateError, ValidationError
+from .config import ConfigurationError, setup_logging
+from .jira_assets_client import (
     AssetNotFoundError,
     JiraAssetsAPIError,
     ObjectTypeNotFoundError,
     SchemaNotFoundError,
 )
-from oauth_client import OAuthClient, OAuthError, OAuthFlowError, TokenError
+from .oauth_client import OAuthClient, OAuthError, OAuthFlowError, TokenError
 
 # Initialize colorama for cross-platform colored output
 colorama.init()
@@ -242,7 +242,7 @@ def test_single_asset(asset_manager: AssetManager, object_key: str, dry_run: boo
 def process_bulk_assets(asset_manager: AssetManager, dry_run: bool = True, batch_size: int = None) -> List[Dict[str, Any]]:
     """Process all assets in bulk."""
     if batch_size is None:
-        batch_size = config.config.batch_size
+        batch_size = config.batch_size
     
     print_info(f"Starting bulk processing (dry_run={dry_run}, batch_size={batch_size})")
     
@@ -364,7 +364,7 @@ def test_single_retirement(asset_manager: AssetManager, object_key: str, dry_run
 def process_asset_retirements(asset_manager: AssetManager, dry_run: bool = True, batch_size: int = None) -> List[Dict[str, Any]]:
     """Process all assets that need to be retired."""
     if batch_size is None:
-        batch_size = config.config.batch_size
+        batch_size = config.batch_size
     
     print_info(f"Starting asset retirement processing (dry_run={dry_run}, batch_size={batch_size})")
     
@@ -522,7 +522,7 @@ Examples:
         '--batch-size',
         type=int,
         metavar='N',
-        help=f'Batch size for bulk operations (default: {config.config.batch_size})'
+        help=f'Batch size for bulk operations (default: {config.batch_size})'
     )
     
     # CSV migration options
@@ -632,7 +632,7 @@ def setup_oauth_authentication():
     print()
     
     # Check if OAuth is already configured
-    if not config.config.is_oauth_configured():
+    if not config.is_oauth_configured():
         print_error("OAuth 2.0 is not configured. Please update your .env file first:")
         print()
         print(f"{Fore.YELLOW}Required OAuth settings in .env:{Style.RESET_ALL}")
@@ -682,8 +682,8 @@ def validate_environment():
     """Validate environment and configuration."""
     try:
         # This will raise ConfigurationError if something is wrong
-        _ = config.config.jira_base_url
-        _ = config.config.assets_workspace_id
+        _ = config.jira_base_url
+        _ = config.assets_workspace_id
         print_success("Environment configuration validated")
         return True
         

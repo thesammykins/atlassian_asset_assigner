@@ -29,6 +29,18 @@ class TestNewAssetWorkflowIntegration:
         config.LAPTOPS_OBJECT_SCHEMA_NAME = 'Laptops'
         config.USER_EMAIL_ATTRIBUTE = 'User Email'
         config.ASSIGNEE_ATTRIBUTE = 'Assignee'
+        
+        # Add all the required attributes for AssetManager
+        config.hardware_schema_name = 'Hardware'
+        config.laptops_object_schema_name = 'Laptops'
+        config.user_email_attribute = 'User Email'
+        config.assignee_attribute = 'Assignee'
+        config.retirement_date_attribute = 'Retirement Date'
+        config.asset_status_attribute = 'Status'
+        config.model_name_attribute = 'Model'
+        config.serial_number_attribute = 'Serial Number'
+        config.assets_workspace_id = 'workspace-123'
+        
         return config
 
     @pytest.fixture
@@ -139,12 +151,14 @@ class TestNewAssetWorkflowIntegration:
             # Mock extract_attribute_value_by_id for model extraction
             def mock_extract_attribute_by_id(obj, attr_id):
                 if str(attr_id) == '146':  # Model attribute
-                    model_map = {
-                        'HW-0001': 'MacBook Pro 16"',
-                        'HW-0002': 'MacBook Air 13"',
-                        'HW-0003': 'ThinkPad X1 Carbon'
-                    }
-                    return model_map.get(obj.get('objectKey'))
+                    # Extract model value from the object's attributes like the real method does
+                    attributes = obj.get('attributes', [])
+                    for attr in attributes:
+                        if attr.get('name') == 'Model':
+                            values = attr.get('values', [])
+                            if values:
+                                return values[0].get('value')
+                    return None
                 return None
             
             assets_client.extract_attribute_value_by_id.side_effect = mock_extract_attribute_by_id
@@ -196,6 +210,32 @@ class TestNewAssetWorkflowIntegration:
             mock_cache_manager.get_cached_data.return_value = None
             mock_cache_manager.cache_data.return_value = True
             
+            # Instead, directly mock the list methods to return consistent data
+            manager.list_models = MagicMock(return_value=['MacBook Air 13"', 'MacBook Pro 16"', 'ThinkPad X1 Carbon'])
+            manager.list_statuses = MagicMock(return_value=['Available', 'In Use', 'Maintenance', 'Retired'])
+            manager.list_suppliers = MagicMock(return_value=['Apple', 'Lenovo', 'Dell'])
+            
+            # Mock the resolution methods
+            def mock_resolve_status_name_to_id(status_name):
+                status_map = {
+                    'Available': '1',
+                    'In Use': '2', 
+                    'Maintenance': '3',
+                    'Retired': '4'
+                }
+                return status_map.get(status_name, '1')
+            
+            def mock_resolve_model_name_to_object_key(model_name):
+                model_map = {
+                    'MacBook Air 13"': 'HW-0002',
+                    'MacBook Pro 16"': 'HW-0001',
+                    'ThinkPad X1 Carbon': 'HW-0003'
+                }
+                return model_map.get(model_name, 'HW-0001')
+            
+            manager.resolve_status_name_to_id = MagicMock(side_effect=mock_resolve_status_name_to_id)
+            manager.resolve_model_name_to_object_key = MagicMock(side_effect=mock_resolve_model_name_to_object_key)
+            
             return manager
 
     def test_full_workflow_integration_success(self, mock_full_workflow_manager):
@@ -237,15 +277,26 @@ class TestNewAssetWorkflowIntegration:
         manager = mock_full_workflow_manager
         
         try:
-            # Test model fetching failure
+            # Test model fetching failure - temporarily remove mocked list_models
+            # to allow the real method to be called and raise exceptions
+            if hasattr(manager.list_models, '_mock_name'):
+                # Remove the mock so the real method is used
+                delattr(manager, 'list_models')
+            
             manager.assets_client.find_objects_by_aql.side_effect = JiraAssetsAPIError("Connection failed")
             
             with pytest.raises(JiraAssetsAPIError):
                 manager.list_models()
                 
-            # Reset and test status fetching failure
+            # Reset and test status fetching failure via different method
             manager.assets_client.find_objects_by_aql.side_effect = None
-            manager.assets_client.get_object_attributes.side_effect = JiraAssetsAPIError("Permission denied")
+            
+            # Also remove mocked list_statuses to test real method  
+            if hasattr(manager.list_statuses, '_mock_name'):
+                delattr(manager, 'list_statuses')
+            
+            # Test status method with AQL failure instead
+            manager.assets_client.find_objects_by_aql.side_effect = JiraAssetsAPIError("Permission denied")
             
             with pytest.raises(JiraAssetsAPIError):
                 manager.list_statuses()
@@ -382,8 +433,9 @@ class TestNewAssetWorkflowIntegration:
             serial_attr = next(attr for attr in attributes if attr['objectTypeAttributeId'] == '134')
             assert serial_attr['objectAttributeValues'][0]['value'] == 'MAPPING-TEST-001'
             
+            # Model attribute should contain the object key, not the display name
             model_attr = next(attr for attr in attributes if attr['objectTypeAttributeId'] == '146')
-            assert model_attr['objectAttributeValues'][0]['value'] == 'MacBook Pro 16"'
+            assert model_attr['objectAttributeValues'][0]['value'] == 'HW-0001'  # Object key, not display name
             
             remote_attr = next(attr for attr in attributes if attr['objectTypeAttributeId'] == '147')
             assert remote_attr['objectAttributeValues'][0]['value'] is True

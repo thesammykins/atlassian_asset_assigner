@@ -12,9 +12,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from cache_manager import cache_manager
-from config import config
-from jira_assets_client import (
+from .cache_manager import cache_manager
+from .config import config
+from .jira_assets_client import (
     AssetNotFoundError,
     AttributeNotFoundError,
     JiraAssetsAPIError,
@@ -22,7 +22,7 @@ from jira_assets_client import (
     ObjectTypeNotFoundError,
     SchemaNotFoundError,
 )
-from jira_user_client import (
+from .jira_user_client import (
     JiraUserAPIError,
     JiraUserClient,
     MultipleUsersFoundError,
@@ -1090,15 +1090,34 @@ class AssetManager:
             
             self.logger.info(f"AQL query returned {len(all_objects)} objects")
             
-            # Extract model names from objects using attribute ID
+            # Extract unique model names from objects
             model_names = set()
+            model_map = {}  # Track object key per model name
+            
             for obj in all_objects:
+                # Try attribute ID extraction first
                 model_name = self.assets_client.extract_attribute_value_by_id(obj, model_name_attribute_id)
+                
+                # If not found, try attribute name structure
+                if not model_name:
+                    for attr in obj.get('attributes', []):
+                        if attr.get('name') == self.config.model_name_attribute:
+                            values = attr.get('values', [])
+                            if values and isinstance(values, list):
+                                val = values[0]  # Take first value if multiple exist
+                                if isinstance(val, dict):
+                                    model_name = val.get('value')
+                                    # Store the mapping of model name to object key
+                                    model_map[model_name] = obj.get('objectKey')
+                
+                # Store unique model names and their object keys
                 if model_name and isinstance(model_name, str):
                     model_name = model_name.strip()
                     if model_name:
+                        # Save both the name and object key mapping
                         model_names.add(model_name)
-                        self.logger.debug(f"Found model: {model_name}")
+                        model_map[model_name] = obj.get('objectKey')
+                        self.logger.debug(f"Found model: {model_name} -> {obj.get('objectKey')}")
             
             # Convert to sorted list
             sorted_models = sorted(model_names, key=str.lower)
@@ -1481,41 +1500,33 @@ class AssetManager:
             laptops_object_type = self.get_laptops_object_type()
             object_type_id = laptops_object_type['id']
             
-            # Get the attribute ID for the Status attribute
-            status_attribute_id = self.assets_client.get_attribute_id_by_name(
-                self.config.asset_status_attribute, object_type_id
-            )
+            # Get object type attributes to find the status attribute
+            attributes = self.assets_client.get_object_attributes(object_type_id)
             
-            # Use AQL to find assets with the exact status name
-            aql_query = f'objectType = "{self.laptops_object_schema_name}" AND "{self.config.asset_status_attribute}" = "{status_name}"'
-            
-            self.logger.debug(f"Resolving status '{status_name}' to ID using AQL: {aql_query}")
-            
-            # Get just one object with this status (limit 1 for efficiency)
-            result = self.assets_client.find_objects_by_aql(aql_query, limit=1)
-            objects = result.get('values', [])
-            
-            if not objects:
-                # Try to get available statuses for error message
-                available_statuses = self.list_statuses()
-                raise ValueError(f"Status '{status_name}' not found. Available statuses: {available_statuses}")
-            
-            # Extract the status ID from the first object
-            obj = objects[0]
-            attributes = obj.get('attributes', [])
-            
+            # Find the status attribute
+            status_attribute = None
             for attr in attributes:
-                if str(attr.get('objectTypeAttributeId')) == str(status_attribute_id):
-                    attribute_values = attr.get('objectAttributeValues', [])
-                    for val in attribute_values:
-                        # Look for status information
-                        status_info = val.get('status')
-                        if status_info and status_info.get('name') == status_name:
-                            status_id = status_info.get('id')
-                            self.logger.debug(f"Resolved status '{status_name}' to ID: {status_id}")
-                            return str(status_id)
+                if attr.get('name') == self.config.asset_status_attribute:
+                    status_attribute = attr
+                    break
             
-            raise ValueError(f"Could not resolve status '{status_name}' to ID")
+            if not status_attribute:
+                raise ValueError(f"Status attribute '{self.config.asset_status_attribute}' not found")
+            
+            # Get status type values from attribute metadata
+            type_value = status_attribute.get('typeValue', {})
+            status_type_values = type_value.get('statusTypeValues', [])
+            
+            # Find matching status name in the available status values
+            for status_value in status_type_values:
+                if status_value.get('name') == status_name:
+                    status_id = status_value.get('id')
+                    self.logger.debug(f"Resolved status '{status_name}' to ID: {status_id}")
+                    return str(status_id)
+            
+            # If not found, get available status names for error message
+            available_statuses = [sv.get('name') for sv in status_type_values]
+            raise ValueError(f"Status '{status_name}' not found. Available statuses: {available_statuses}")
             
         except Exception as e:
             self.logger.error(f"Failed to resolve status '{status_name}' to ID: {e}")
@@ -1556,29 +1567,39 @@ class AssetManager:
             result = self.assets_client.find_objects_by_aql(aql_query, limit=100)
             objects = result.get('values', [])
             
-            # Search through objects to find one with matching model name
+            # Search through objects using cached model names
             for obj in objects:
+                # Check exact match first
+                if obj['objectKey'] == model_name:  # Direct object key provided
+                    return model_name
+                
                 attributes = obj.get('attributes', [])
                 for attr in attributes:
                     if str(attr.get('objectTypeAttributeId')) == str(model_name_attribute_id):
                         attribute_values = attr.get('objectAttributeValues', [])
                         for val in attribute_values:
-                            # Check if this model matches our search name
                             display_value = val.get('displayValue', '')
+                            
                             if display_value == model_name:
-                                # Get the object key from searchValue or referencedObject
-                                search_value = val.get('searchValue')
-                                if search_value:
-                                    self.logger.debug(f"Resolved model '{model_name}' to object key: {search_value}")
-                                    return search_value
-                                
-                                # Fallback to referencedObject if available
-                                referenced_obj = val.get('referencedObject')
-                                if referenced_obj:
-                                    object_key = referenced_obj.get('objectKey')
-                                    if object_key:
-                                        self.logger.debug(f"Resolved model '{model_name}' to object key: {object_key}")
-                                        return object_key
+                                # Get object key references
+                                if val.get('searchValue'):
+                                    self.logger.debug(f"Resolved model '{model_name}' to object key: {val['searchValue']}")
+                                    return val['searchValue']
+                                elif val.get('referencedObject', {}).get('objectKey'):
+                                    object_key = val['referencedObject']['objectKey']
+                                    self.logger.debug(f"Resolved model '{model_name}' to object key: {object_key}")
+                                    return object_key
+                    
+                    # Also check model name directly in attributes
+                    if attr.get('name') == self.config.model_name_attribute:
+                        values = attr.get('values', [])
+                        if values and isinstance(values, list):
+                            val = values[0]
+                            if isinstance(val, dict):
+                                val_name = val.get('value')
+                                if val_name == model_name:
+                                    self.logger.debug(f"Resolved model '{model_name}' to object key: {obj['objectKey']}")
+                                    return obj['objectKey']
             
             # If not found, try to get available models for error message
             available_models = self.list_models()
@@ -1818,8 +1839,15 @@ class AssetManager:
                     'objectAttributeValues': [{'value': model_object_key}]
                 })
             
-            # Status attribute (use status ID)
-            if self.config.asset_status_attribute in attr_map and status_id:
+            # Status attribute (use status ID if attribute exists)
+            if self.config.asset_status_attribute in attr_map:
+                try:
+                    status_id = self.resolve_status_name_to_id(status)
+                except ValueError as e:
+                    error_msg = str(e)
+                    result['error'] = error_msg
+                    self.logger.error(error_msg)
+                    return result
                 payload_attributes.append({
                     'objectTypeAttributeId': attr_map[self.config.asset_status_attribute],
                     'objectAttributeValues': [{'value': status_id}]

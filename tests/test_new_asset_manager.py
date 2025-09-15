@@ -76,7 +76,7 @@ class TestNewAssetManagerMethods:
         # Mock object type attributes response with status attribute
         mock_status_attr = {
             'id': '145',
-            'name': 'Status',
+            'name': 'Asset Status',
             'defaultType': {'id': 7, 'name': 'Status'},
             'typeValue': {
                 'statusTypeValues': [
@@ -143,7 +143,7 @@ class TestNewAssetManagerMethods:
             {'id': '134', 'name': 'Serial Number', 'defaultType': {'name': 'Text'}},
             {
                 'id': '145', 
-                'name': 'Status', 
+                'name': 'Asset Status',
                 'defaultType': {'name': 'Status'},
                 'typeValue': {
                     'statusTypeValues': [
@@ -153,7 +153,7 @@ class TestNewAssetManagerMethods:
                     ]
                 }
             },
-            {'id': '146', 'name': 'Model', 'defaultType': {'name': 'Text'}},
+            {'id': '146', 'name': 'Model Name', 'defaultType': {'name': 'Text'}},
             {'id': '147', 'name': 'Remote Asset', 'defaultType': {'name': 'Boolean'}}
         ]
         mock_asset_manager.assets_client.get_object_attributes.return_value = mock_attributes
@@ -166,6 +166,15 @@ class TestNewAssetManagerMethods:
             'created': '2023-12-01T10:00:00.000Z'
         }
         mock_asset_manager.assets_client.create_object.return_value = mock_created_object
+
+        # Mock list_models response for model validation
+        mock_asset_manager.assets_client.find_objects_by_aql.return_value = {
+            'values': [
+                {'objectKey': 'MODEL-001', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'MacBook Pro 16"'}]}]},
+                {'objectKey': 'MODEL-002', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'ThinkPad X1'}]}]},
+                {'objectKey': 'MODEL-003', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'Surface Pro'}]}]}
+            ]
+        }
 
         # Test the method (should be implemented)
         try:
@@ -205,11 +214,28 @@ class TestNewAssetManagerMethods:
         from src.jira_assets_client import AssetNotFoundError
         mock_asset_manager.assets_client.find_object_by_serial_number.side_effect = AssetNotFoundError("No asset found")
         
-        # Mock attributes
+        # Mock attributes with minimal required set
         mock_asset_manager.assets_client.get_object_attributes.return_value = [
-            {'id': '134', 'name': 'Serial Number', 'defaultType': {'name': 'Text'}}
+            {'id': '134', 'name': 'Serial Number', 'defaultType': {'name': 'Text'}},
+            {
+                'id': '145',
+                'name': 'Asset Status',
+                'defaultType': {'name': 'Status'},
+                'typeValue': {
+                    'statusTypeValues': [
+                        {'id': '1', 'name': 'Available'},
+                    ]
+                }
+            }
         ]
         
+        # Mock model reference resolution
+        mock_asset_manager.assets_client.find_objects_by_aql.return_value = {
+            'values': [
+                {'objectKey': 'MODEL-001', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'MacBook Pro'}]}]},
+            ]
+        }
+
         # Mock API error during object creation
         mock_asset_manager.assets_client.create_object.side_effect = JiraAssetsAPIError("Permission denied")
 
@@ -243,10 +269,11 @@ class TestNewAssetManagerMethods:
         from src.jira_assets_client import AssetNotFoundError
         mock_asset_manager.assets_client.find_object_by_serial_number.side_effect = AssetNotFoundError("No asset found")
         mock_asset_manager.assets_client.get_object_attributes.return_value = [
-            {'id': '134', 'name': 'Serial Number'},
+            {'id': '134', 'name': 'Serial Number', 'defaultType': {'name': 'Text'}},
             {
-                'id': '145', 
-                'name': 'Status',
+                'id': '145',
+                'name': 'Asset Status',
+                'defaultType': {'name': 'Status'},
                 'typeValue': {
                     'statusTypeValues': [
                         {'id': '1', 'name': 'Available'},
@@ -255,13 +282,22 @@ class TestNewAssetManagerMethods:
                     ]
                 }
             },
-            {'id': '146', 'name': 'Model'},
-            {'id': '147', 'name': 'Remote Asset'}
+            {'id': '146', 'name': 'Model Name', 'defaultType': {'name': 'Reference'}},
+            {'id': '147', 'name': 'Remote Asset', 'defaultType': {'name': 'Boolean'}}
         ]
         mock_asset_manager.assets_client.create_object.return_value = {
             'id': '999',
             'objectKey': f'HW-{serial[-3:]}',
             'label': f'{model} - {serial}'
+        }
+
+        # Mock list_models response for model validation
+        mock_asset_manager.assets_client.find_objects_by_aql.return_value = {
+            'values': [
+                {'objectKey': 'MODEL-001', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'MacBook Pro'}]}]},
+                {'objectKey': 'MODEL-002', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'ThinkPad X1'}]}]},
+                {'objectKey': 'MODEL-003', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'Surface Pro'}]}]}
+            ]
         }
 
         try:
@@ -395,7 +431,7 @@ class TestNewAssetManagerAPIIntegration:
                         {'id': '1', 'name': 'Available'},
                         {'id': '2', 'name': 'In Use'},
                         {'id': '3', 'name': 'Maintenance'},
-                        {'id': '4', 'name': 'Retired'}
+            {'id': '146', 'name': 'Model Name', 'defaultType': {'name': 'Text'}, 'objectAttributeValues': [{'displayValue': 'MacBook Pro 16"'}, {'displayValue': 'ThinkPad X1'}, {'displayValue': 'Surface Pro'}]},
                     ]
                 }
             }
