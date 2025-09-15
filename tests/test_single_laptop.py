@@ -4,9 +4,9 @@ Test script to verify OAuth and Assets API functionality with a single laptop.
 This tests the complete flow: authentication, API access, user lookup, and attribute update.
 """
 
-import sys
 from src.jira_assets_client import JiraAssetsClient
 from src.jira_user_client import JiraUserClient
+import sys
 
 
 def test_single_laptop():
