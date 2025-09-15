@@ -1569,8 +1569,8 @@ class AssetManager:
             
             # Search through objects using cached model names
             for obj in objects:
-                # Check exact match first
-                if obj['objectKey'] == model_name:  # Direct object key provided
+                # Check exact match by object key (if model_name is actually a key)
+                if obj.get('objectKey') == model_name:
                     return model_name
                 
                 attributes = obj.get('attributes', [])
@@ -1580,7 +1580,8 @@ class AssetManager:
                         for val in attribute_values:
                             display_value = val.get('displayValue', '')
                             
-                            if display_value == model_name:
+                            # Allow partial match to handle variations like "MacBook Pro" vs "MacBook Pro 16\""
+                            if display_value == model_name or (model_name in display_value):
                                 # Get object key references
                                 if val.get('searchValue'):
                                     self.logger.debug(f"Resolved model '{model_name}' to object key: {val['searchValue']}")
@@ -1597,7 +1598,7 @@ class AssetManager:
                             val = values[0]
                             if isinstance(val, dict):
                                 val_name = val.get('value')
-                                if val_name == model_name:
+                                if val_name == model_name or (model_name in (val_name or '')):
                                     self.logger.debug(f"Resolved model '{model_name}' to object key: {obj['objectKey']}")
                                     return obj['objectKey']
             

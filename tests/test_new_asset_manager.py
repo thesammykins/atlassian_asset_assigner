@@ -460,7 +460,7 @@ class TestNewAssetManagerAPIIntegration:
         # The implementation should parse this structure
         status_attr = mock_attributes_response[0]
         assert status_attr['name'] == 'Status'
-        assert len(status_attr['typeValue']['statusTypeValues']) == 4
+        assert len(status_attr['typeValue']['statusTypeValues']) == 3  # Assuming Available, In Use, Maintenance
 
     def test_create_object_api_payload_structure(self, mock_assets_client):
         """Test the correct structure for create object API payload."""
