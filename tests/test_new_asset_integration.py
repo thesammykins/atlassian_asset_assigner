@@ -485,7 +485,7 @@ class TestNewAssetWorkflowIntegration:
             
             model_choice = int(mock_input()) - 1
             selected_model = models[model_choice]
-            assert selected_model == 'MacBook Pro 16"'  # First model
+            assert selected_model == 'MacBook Air 13"'  # First model (alphabetically sorted)
             
             # 3. Show and select status
             statuses = manager.list_statuses()

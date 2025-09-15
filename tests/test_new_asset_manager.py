@@ -30,8 +30,9 @@ class TestNewAssetManagerMethods:
 
     def test_list_models_calls_correct_api(self, mock_asset_manager):
         """Test that list_models calls the correct API endpoint."""
-        # Mock the laptops object type response
-        mock_asset_manager.get_laptops_object_type.return_value = {'id': '23', 'name': 'Laptops'}
+        # Mock the underlying dependencies that get_laptops_object_type calls
+        mock_asset_manager.assets_client.get_schema_by_name.return_value = {'id': '10', 'name': 'Hardware'}
+        mock_asset_manager.assets_client.get_object_type_by_name.return_value = {'id': '23', 'name': 'Laptops'}
         
         # Mock AQL query response with model names
         mock_asset_manager.assets_client.find_objects_by_aql.return_value = {
@@ -53,17 +54,17 @@ class TestNewAssetManagerMethods:
         try:
             models = mock_asset_manager.list_models()
             # Should return unique model names
-            expected_models = ['MacBook Pro 16"', 'MacBook Air 13"', 'ThinkPad X1 Carbon']
+            expected_models = ['MacBook Air 13"', 'MacBook Pro 16"', 'ThinkPad X1 Carbon']  # Sorted
             assert len(models) == 3
-            for model in expected_models:
-                assert model in models
+            assert models == expected_models  # Check exact sorted order
         except AttributeError:
             pytest.skip("list_models method not yet implemented")
 
     def test_list_statuses_calls_correct_api(self, mock_asset_manager):
         """Test that list_statuses fetches available status options from object type attributes."""
-        # Mock the laptops object type response
-        mock_asset_manager.get_laptops_object_type.return_value = {'id': '23', 'name': 'Laptops'}
+        # Mock the underlying dependencies that get_laptops_object_type calls
+        mock_asset_manager.assets_client.get_schema_by_name.return_value = {'id': '10', 'name': 'Hardware'}
+        mock_asset_manager.assets_client.get_object_type_by_name.return_value = {'id': '23', 'name': 'Laptops'}
         
         # Mock object type attributes response with status attribute
         mock_status_attr = {
@@ -98,13 +99,28 @@ class TestNewAssetManagerMethods:
 
     def test_create_asset_builds_correct_payload(self, mock_asset_manager):
         """Test that create_asset builds the correct API payload."""
-        # Mock object type and attributes
-        mock_object_type = {'id': '23', 'name': 'Laptops'}
-        mock_asset_manager.get_laptops_object_type.return_value = mock_object_type
+        # Mock object type and attributes - patch the underlying dependencies
+        mock_asset_manager.assets_client.get_schema_by_name.return_value = {'id': '10', 'name': 'Hardware'}
+        mock_asset_manager.assets_client.get_object_type_by_name.return_value = {'id': '23', 'name': 'Laptops'}
+        
+        # Mock that no duplicate serial exists (raises AssetNotFoundError)
+        from src.jira_assets_client import AssetNotFoundError
+        mock_asset_manager.assets_client.find_object_by_serial_number.side_effect = AssetNotFoundError("No asset found")
         
         mock_attributes = [
             {'id': '134', 'name': 'Serial Number', 'defaultType': {'name': 'Text'}},
-            {'id': '145', 'name': 'Status', 'defaultType': {'name': 'Status'}},
+            {
+                'id': '145', 
+                'name': 'Status', 
+                'defaultType': {'name': 'Status'},
+                'typeValue': {
+                    'statusTypeValues': [
+                        {'id': '1', 'name': 'Available'},
+                        {'id': '2', 'name': 'In Use'},
+                        {'id': '3', 'name': 'Maintenance'}
+                    ]
+                }
+            },
             {'id': '146', 'name': 'Model', 'defaultType': {'name': 'Text'}},
             {'id': '147', 'name': 'Remote Asset', 'defaultType': {'name': 'Boolean'}}
         ]
@@ -151,8 +167,13 @@ class TestNewAssetManagerMethods:
 
     def test_create_asset_handles_api_errors(self, mock_asset_manager):
         """Test that create_asset properly handles API errors."""
-        # Mock object type
-        mock_asset_manager.get_laptops_object_type.return_value = {'id': '23', 'name': 'Laptops'}
+        # Mock the underlying dependencies that get_laptops_object_type calls
+        mock_asset_manager.assets_client.get_schema_by_name.return_value = {'id': '10', 'name': 'Hardware'}
+        mock_asset_manager.assets_client.get_object_type_by_name.return_value = {'id': '23', 'name': 'Laptops'}
+        
+        # Mock that no duplicate serial exists (raises AssetNotFoundError)
+        from src.jira_assets_client import AssetNotFoundError
+        mock_asset_manager.assets_client.find_object_by_serial_number.side_effect = AssetNotFoundError("No asset found")
         
         # Mock attributes
         mock_asset_manager.assets_client.get_object_attributes.return_value = [
@@ -184,11 +205,26 @@ class TestNewAssetManagerMethods:
     ])
     def test_create_asset_with_various_inputs(self, mock_asset_manager, serial, model, status, is_remote):
         """Test create_asset with various input combinations."""
-        # Mock successful responses
-        mock_asset_manager.get_laptops_object_type.return_value = {'id': '23', 'name': 'Laptops'}
+        # Mock successful responses - patch the underlying dependencies
+        mock_asset_manager.assets_client.get_schema_by_name.return_value = {'id': '10', 'name': 'Hardware'}
+        mock_asset_manager.assets_client.get_object_type_by_name.return_value = {'id': '23', 'name': 'Laptops'}
+        
+        # Mock that no duplicate serial exists (raises AssetNotFoundError)
+        from src.jira_assets_client import AssetNotFoundError
+        mock_asset_manager.assets_client.find_object_by_serial_number.side_effect = AssetNotFoundError("No asset found")
         mock_asset_manager.assets_client.get_object_attributes.return_value = [
             {'id': '134', 'name': 'Serial Number'},
-            {'id': '145', 'name': 'Status'},
+            {
+                'id': '145', 
+                'name': 'Status',
+                'typeValue': {
+                    'statusTypeValues': [
+                        {'id': '1', 'name': 'Available'},
+                        {'id': '2', 'name': 'In Use'},
+                        {'id': '3', 'name': 'Maintenance'}
+                    ]
+                }
+            },
             {'id': '146', 'name': 'Model'},
             {'id': '147', 'name': 'Remote Asset'}
         ]
@@ -219,43 +255,48 @@ class TestNewAssetManagerMethods:
         """Test input validation for asset creation."""
         try:
             # Test empty serial number
-            with pytest.raises(ValueError, match="Serial number cannot be empty"):
-                mock_asset_manager.create_asset(
-                    serial="",
-                    model_name="MacBook Pro",
-                    status="Available",
-                    is_remote=False
-                )
+            result = mock_asset_manager.create_asset(
+                serial="",
+                model_name="MacBook Pro",
+                status="Available",
+                is_remote=False
+            )
+            assert result['success'] is False
+            assert 'Serial number cannot be empty' in result['error']
             
             # Test empty model name
-            with pytest.raises(ValueError, match="Model name cannot be empty"):
-                mock_asset_manager.create_asset(
-                    serial="ABC123",
-                    model_name="",
-                    status="Available", 
-                    is_remote=False
-                )
+            result = mock_asset_manager.create_asset(
+                serial="ABC123",
+                model_name="",
+                status="Available", 
+                is_remote=False
+            )
+            assert result['success'] is False
+            assert 'Model name cannot be empty' in result['error']
                 
             # Test empty status
-            with pytest.raises(ValueError, match="Status cannot be empty"):
-                mock_asset_manager.create_asset(
-                    serial="ABC123",
-                    model_name="MacBook Pro",
-                    status="",
-                    is_remote=False
-                )
+            result = mock_asset_manager.create_asset(
+                serial="ABC123",
+                model_name="MacBook Pro",
+                status="",
+                is_remote=False
+            )
+            assert result['success'] is False
+            assert 'Status cannot be empty' in result['error']
                 
         except AttributeError:
             pytest.skip("create_asset method not yet implemented or validation not added")
 
     def test_duplicate_serial_number_handling(self, mock_asset_manager):
         """Test handling of duplicate serial numbers."""
-        # Mock object type
-        mock_asset_manager.get_laptops_object_type.return_value = {'id': '23', 'name': 'Laptops'}
+        # Mock the underlying dependencies that get_laptops_object_type calls
+        mock_asset_manager.assets_client.get_schema_by_name.return_value = {'id': '10', 'name': 'Hardware'}
+        mock_asset_manager.assets_client.get_object_type_by_name.return_value = {'id': '23', 'name': 'Laptops'}
         
-        # Mock finding existing object with same serial
-        mock_asset_manager.assets_client.find_objects_by_aql.return_value = {
-            'values': [{'objectKey': 'HW-001', 'id': '123'}]
+        # Mock finding existing object with same serial (duplicate)
+        mock_asset_manager.assets_client.find_object_by_serial_number.return_value = {
+            'objectKey': 'HW-001', 
+            'id': '123'
         }
         
         try:

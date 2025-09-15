@@ -479,6 +479,11 @@ Examples:
         help='Retire assets that have a retirement date set'
     )
     group.add_argument(
+        '--new',
+        action='store_true',
+        help='Create new assets interactively with barcode/serial input and model selection'
+    )
+    group.add_argument(
         '--oauth-setup',
         action='store_true',
         help='Set up OAuth 2.0 authentication (required for bulk operations with schema access)'
@@ -748,6 +753,412 @@ def validate_csv_migration_args(args) -> bool:
     return True
 
 
+def run_new_asset_workflow(asset_manager: AssetManager) -> int:
+    """Run interactive new asset creation workflow."""
+    print_colored("🚀 Starting new asset creation workflow...", Fore.CYAN, Style.BRIGHT)
+    print_colored("Type 'q' at any prompt to quit.", Fore.YELLOW)
+    print()
+    
+    try:
+        while True:
+            # 1. Prompt for serial number
+            while True:
+                try:
+                    serial = input(f"{Fore.CYAN}🏷️  Scan/enter serial number (or 'q' to quit): {Style.RESET_ALL}").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("\n👋 Goodbye!")
+                    return 0
+                    
+                if serial.lower() == 'q':
+                    print("👋 Goodbye!")
+                    return 0
+                    
+                if not serial:
+                    print_error("Serial number cannot be empty. Please try again.")
+                    continue
+                    
+                if len(serial) < 2 or len(serial) > 128:
+                    print_error(f"Serial number must be between 2 and 128 characters. Got {len(serial)} characters.")
+                    continue
+                    
+                # Serial number looks valid
+                break
+            
+            # 2. Fetch and display models
+            print_info("📦 Loading available models...")
+            try:
+                models = asset_manager.list_models()
+            except Exception as e:
+                print_error(f"Error loading models: {e}")
+                print_warning("You may need to enter a custom model name.")
+                models = []
+                
+            if not models:
+                print_warning("No existing models found. You'll need to enter a custom model.")
+                while True:
+                    try:
+                        model_name = input(f"{Fore.CYAN}📱 Enter model name (or 'q' to quit): {Style.RESET_ALL}").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        print("\n👋 Goodbye!")
+                        return 0
+                        
+                    if model_name.lower() == 'q':
+                        print("👋 Goodbye!")
+                        return 0
+                        
+                    if model_name:
+                        break
+                    else:
+                        print_error("Model name cannot be empty.")
+            else:
+                print(f"\n{Fore.BLUE}Available models:{Style.RESET_ALL}")
+                for i, model in enumerate(models, 1):
+                    print(f"  {i}. {model}")
+                print(f"  {len(models) + 1}. Enter a custom model")
+                print(f"  {Fore.YELLOW}q. Quit{Style.RESET_ALL}")
+                
+                while True:
+                    try:
+                        choice = input(f"\n{Fore.CYAN}Choose a model [1-{len(models) + 1}] or 'q': {Style.RESET_ALL}").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        print("\n👋 Goodbye!")
+                        return 0
+                        
+                    if choice.lower() == 'q':
+                        print("👋 Goodbye!")
+                        return 0
+                    
+                    # Check if it's a direct model name match first
+                    if choice in models:
+                        model_name = choice
+                        break
+                        
+                    # Try numeric selection
+                    try:
+                        choice_num = int(choice)
+                        if 1 <= choice_num <= len(models):
+                            model_name = models[choice_num - 1]
+                            break
+                        elif choice_num == len(models) + 1:
+                            # Custom model
+                            while True:
+                                try:
+                                    model_name = input(f"{Fore.CYAN}📱 Enter custom model name (or 'q' to quit): {Style.RESET_ALL}").strip()
+                                except (EOFError, KeyboardInterrupt):
+                                    print("\n👋 Goodbye!")
+                                    return 0
+                                    
+                                if model_name.lower() == 'q':
+                                    print("👋 Goodbye!")
+                                    return 0
+                                    
+                                if model_name:
+                                    break
+                                else:
+                                    print_error("Model name cannot be empty.")
+                            break
+                        else:
+                            print_error(f"Please enter a number between 1 and {len(models) + 1}.")
+                    except ValueError:
+                        # Not a number, and not an exact model name match, treat as custom model if non-empty
+                        if choice.strip():
+                            model_name = choice.strip()
+                            break
+                        else:
+                            print_error(f"Please enter a valid number between 1 and {len(models) + 1}.")
+            
+            # 3. Fetch and display statuses
+            print_info("📊 Loading available statuses...")
+            try:
+                statuses = asset_manager.list_statuses()
+            except Exception as e:
+                print_error(f"Error loading statuses: {e}")
+                print_error("Cannot create asset without valid statuses.")
+                continue
+                
+            if not statuses:
+                print_error("No statuses available. Cannot create asset.")
+                continue
+                
+            print(f"\n{Fore.BLUE}Available statuses:{Style.RESET_ALL}")
+            for i, status in enumerate(statuses, 1):
+                print(f"  {i}. {status}")
+            print(f"  {Fore.YELLOW}q. Quit{Style.RESET_ALL}")
+            
+            while True:
+                try:
+                    choice = input(f"\n{Fore.CYAN}Choose a status [1-{len(statuses)}] or 'q': {Style.RESET_ALL}").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("\n👋 Goodbye!")
+                    return 0
+                    
+                if choice.lower() == 'q':
+                    print("👋 Goodbye!")
+                    return 0
+                
+                # Check if it's a direct status name match first
+                if choice in statuses:
+                    status_name = choice
+                    break
+                    
+                # Try numeric selection
+                try:
+                    choice_num = int(choice)
+                    if 1 <= choice_num <= len(statuses):
+                        status_name = statuses[choice_num - 1]
+                        break
+                    else:
+                        print_error(f"Please enter a number between 1 and {len(statuses)}.")
+                except ValueError:
+                    print_error(f"Please enter a valid number between 1 and {len(statuses)} or exact status name.")
+            
+            # 4. Ask if this is for a remote user
+            while True:
+                try:
+                    remote_input = input(f"\n{Fore.CYAN}🌍 Is this asset for a remote user? (y/n/q): {Style.RESET_ALL}").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    print("\n👋 Goodbye!")
+                    return 0
+                    
+                if remote_input == 'q':
+                    print("👋 Goodbye!")
+                    return 0
+                    
+                if remote_input in ['y', 'yes']:
+                    is_remote = True
+                    break
+                elif remote_input in ['n', 'no']:
+                    is_remote = False
+                    break
+                else:
+                    print_error("Please enter 'y' for yes, 'n' for no, or 'q' to quit.")
+            
+            # 5. Collect optional fields (all can be skipped)
+            optional_fields = {}
+            
+            # Invoice Number (optional)
+            while True:
+                try:
+                    invoice_input = input(f"\n{Fore.CYAN}🧾 Invoice Number (optional, press Enter to skip): {Style.RESET_ALL}").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("\n👋 Goodbye!")
+                    return 0
+                
+                if invoice_input.lower() == 'q':
+                    print("👋 Goodbye!")
+                    return 0
+                
+                # Allow empty input (skip)
+                optional_fields['invoice_number'] = invoice_input if invoice_input else None
+                break
+            
+            # Purchase Date (optional)
+            while True:
+                try:
+                    date_input = input(f"\n{Fore.CYAN}📅 Purchase Date (optional, format: YYYY-MM-DD, press Enter to skip): {Style.RESET_ALL}").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("\n👋 Goodbye!")
+                    return 0
+                
+                if date_input.lower() == 'q':
+                    print("👋 Goodbye!")
+                    return 0
+                
+                # Allow empty input (skip)
+                optional_fields['purchase_date'] = date_input if date_input else None
+                break
+            
+            # Cost (optional)
+            while True:
+                try:
+                    cost_input = input(f"\n{Fore.CYAN}💰 Cost (optional, press Enter to skip): {Style.RESET_ALL}").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("\n👋 Goodbye!")
+                    return 0
+                
+                if cost_input.lower() == 'q':
+                    print("👋 Goodbye!")
+                    return 0
+                
+                # Allow empty input (skip)
+                optional_fields['cost'] = cost_input if cost_input else None
+                break
+            
+            # Colour (optional)
+            while True:
+                try:
+                    colour_input = input(f"\n{Fore.CYAN}🎨 Colour (optional, press Enter to skip): {Style.RESET_ALL}").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("\n👋 Goodbye!")
+                    return 0
+                
+                if colour_input.lower() == 'q':
+                    print("👋 Goodbye!")
+                    return 0
+                
+                # Allow empty input (skip)
+                optional_fields['colour'] = colour_input if colour_input else None
+                break
+            
+            # Supplier (optional)
+            supplier_choice = None
+            try:
+                print_info("🏢 Loading available suppliers...")
+                suppliers = asset_manager.list_suppliers()
+                
+                if suppliers:
+                    print(f"\n{Fore.BLUE}Available suppliers:{Style.RESET_ALL}")
+                    for i, supplier in enumerate(suppliers, 1):
+                        print(f"  {i}. {supplier['name']}")
+                    print(f"  {len(suppliers) + 1}. Enter a new supplier name")
+                    print(f"  {Fore.YELLOW}s. Skip supplier{Style.RESET_ALL}")
+                    print(f"  {Fore.YELLOW}q. Quit{Style.RESET_ALL}")
+                    
+                    while True:
+                        try:
+                            choice = input(f"\n{Fore.CYAN}Choose a supplier [1-{len(suppliers) + 1}], 's' to skip, or 'q': {Style.RESET_ALL}").strip()
+                        except (EOFError, KeyboardInterrupt):
+                            print("\n👋 Goodbye!")
+                            return 0
+                            
+                        if choice.lower() == 'q':
+                            print("👋 Goodbye!")
+                            return 0
+                        elif choice.lower() == 's':
+                            supplier_choice = None
+                            break
+                        
+                        # Check if it's a direct supplier name match first
+                        supplier_names = [s['name'] for s in suppliers]
+                        if choice in supplier_names:
+                            supplier_choice = choice
+                            break
+                            
+                        # Try numeric selection
+                        try:
+                            choice_num = int(choice)
+                            if 1 <= choice_num <= len(suppliers):
+                                supplier_choice = suppliers[choice_num - 1]['name']
+                                break
+                            elif choice_num == len(suppliers) + 1:
+                                # Custom supplier
+                                while True:
+                                    try:
+                                        supplier_choice = input(f"{Fore.CYAN}🏢 Enter supplier name (will be created if new, or 's' to skip): {Style.RESET_ALL}").strip()
+                                    except (EOFError, KeyboardInterrupt):
+                                        print("\n👋 Goodbye!")
+                                        return 0
+                                        
+                                    if supplier_choice.lower() == 's':
+                                        supplier_choice = None
+                                        break
+                                    elif supplier_choice.lower() == 'q':
+                                        print("👋 Goodbye!")
+                                        return 0
+                                        
+                                    if supplier_choice:
+                                        print_info(f"✨ Will use supplier: '{supplier_choice}' (will create if new)")
+                                        break
+                                    else:
+                                        print_error("Supplier name cannot be empty. Use 's' to skip.")
+                                break
+                            else:
+                                print_error(f"Please enter a number between 1 and {len(suppliers) + 1}.")
+                        except ValueError:
+                            print_error(f"Please enter a valid number, supplier name, 's' to skip, or 'q' to quit.")
+                else:
+                    print_warning("No suppliers found. Supplier field will be skipped.")
+                    supplier_choice = None
+                    
+            except Exception as e:
+                print_error(f"Error loading suppliers: {e}")
+                print_warning("Supplier field will be skipped.")
+                supplier_choice = None
+            
+            optional_fields['supplier'] = supplier_choice
+            
+            # 6. Attempt to create the asset
+            print_info("🔧 Creating asset...")
+            try:
+                result = asset_manager.create_asset(
+                    serial=serial,
+                    model_name=model_name,
+                    status=status_name,
+                    is_remote=is_remote,
+                    invoice_number=optional_fields.get('invoice_number'),
+                    purchase_date=optional_fields.get('purchase_date'),
+                    cost=optional_fields.get('cost'),
+                    colour=optional_fields.get('colour'),
+                    supplier=optional_fields.get('supplier')
+                )
+                
+                if result.get('success'):
+                    object_key = result.get('object_key', 'Unknown')
+                    print_success(f"Created asset {object_key}!")
+                    print(f"   Model: {model_name}")
+                    print(f"   Serial: {serial}")
+                    print(f"   Status: {status_name}")
+                    print(f"   Remote: {'Yes' if is_remote else 'No'}")
+                    
+                    # Show optional fields if provided
+                    if optional_fields.get('invoice_number'):
+                        print(f"   Invoice: {optional_fields['invoice_number']}")
+                    if optional_fields.get('purchase_date'):
+                        print(f"   Purchase Date: {optional_fields['purchase_date']}")
+                    if optional_fields.get('cost'):
+                        print(f"   Cost: {optional_fields['cost']}")
+                    if optional_fields.get('colour'):
+                        print(f"   Colour: {optional_fields['colour']}")
+                    if optional_fields.get('supplier'):
+                        print(f"   Supplier: {optional_fields['supplier']}")
+                else:
+                    error_msg = result.get('error', 'Unknown error')
+                    print_error(f"Failed to create asset: {error_msg}")
+                    
+                    # Offer guidance based on error type
+                    if 'already exists' in error_msg.lower() or 'duplicate' in error_msg.lower():
+                        print_warning("💡 Try scanning a different serial number.")
+                    elif 'permission' in error_msg.lower():
+                        print_warning("💡 Check your Jira Service Management permissions for Assets.")
+                    elif 'invalid status' in error_msg.lower():
+                        print_warning("💡 The status selection may be invalid. Try a different status.")
+                    elif 'unauthorized' in error_msg.lower() or '401' in error_msg:
+                        print_warning("💡 Check your API credentials and AUTH_METHOD in .env file.")
+                    elif 'forbidden' in error_msg.lower() or '403' in error_msg:
+                        print_warning("💡 Check your JSM Assets permissions.")
+                        
+            except KeyboardInterrupt:
+                print("\n🛑 Asset creation interrupted!")
+                return 0
+            except Exception as e:
+                print_error(f"Unexpected error creating asset: {e}")
+                
+            # 6. Ask if user wants to add another asset
+            print()
+            while True:
+                try:
+                    continue_input = input(f"{Fore.CYAN}➕ Add another asset? (y/n): {Style.RESET_ALL}").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    print("\n👋 Thanks for using the asset creation workflow!")
+                    return 0
+                    
+                if continue_input in ['y', 'yes']:
+                    print(f"\n{Fore.MAGENTA}{'=' * 50}{Style.RESET_ALL}")
+                    break  # Continue outer loop
+                elif continue_input in ['n', 'no', 'q']:
+                    print_success("👋 Thanks for using the asset creation workflow!")
+                    return 0  # Exit function
+                else:
+                    print_error("Please enter 'y' for yes or 'n' for no.")
+                    
+    except KeyboardInterrupt:
+        print(f"\n\n{Fore.RED}🛑 Asset creation workflow interrupted. Goodbye!{Style.RESET_ALL}")
+        return 0
+    except Exception as e:
+        print_error(f"Unexpected error in workflow: {e}")
+        return 1
+
+
 def main():
     """Main application entry point."""
     print_banner()
@@ -851,6 +1262,10 @@ def main():
                 return 0
             else:
                 return 1
+                
+        elif args.new:
+            # Interactive new asset creation
+            return run_new_asset_workflow(asset_manager)
                 
         elif args.csv_migrate:
             # CSV-based asset migration

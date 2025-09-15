@@ -26,15 +26,23 @@ class TestJiraAssetsClientCreateObject:
         config.JIRA_DOMAIN = 'test-domain.atlassian.net'
         config.ASSETS_WORKSPACE_ID = 'workspace-123'
         config.MAX_REQUESTS_PER_MINUTE = 300
+        # Add attributes needed by JiraAssetsClient
+        config.jira_base_url = 'https://test-domain.atlassian.net'
+        config.assets_workspace_id = 'workspace-123'
+        config.max_requests_per_minute = 300
+        config.auth_method = 'basic'
+        config.get_basic_auth.return_value = ('user@example.com', 'token')
         return config
 
     @pytest.fixture
     def assets_client(self, mock_config):
         """Create assets client with mocked dependencies."""
         with patch('src.jira_assets_client.requests') as mock_requests:
-            client = JiraAssetsClient(mock_config)
-            client.session = mock_requests.Session()
-            return client, mock_requests
+            # Patch the config module to use our mock config
+            with patch('src.jira_assets_client.config', mock_config):
+                client = JiraAssetsClient()
+                client.session = mock_requests.Session()
+                return client, mock_requests
 
     def test_create_object_builds_correct_url(self, assets_client):
         """Test that create_object builds the correct API endpoint URL."""
