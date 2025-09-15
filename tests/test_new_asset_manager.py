@@ -301,7 +301,13 @@ class TestNewAssetManagerMethods:
         # Mock list_models response for model validation
         mock_asset_manager.assets_client.find_objects_by_aql.return_value = {
             'values': [
-                {'objectKey': 'MODEL-001', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'MacBook Pro'}]}]},
+                {
+                    'objectKey': 'MODEL-001',
+                    'attributes': [{
+                        'name': 'Model Name',
+                        'values': [{'value': 'MacBook Pro 16"'}],
+                    }],
+                },
                 {'objectKey': 'MODEL-002', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'ThinkPad X1'}]}]},
                 {'objectKey': 'MODEL-003', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'Surface Pro'}]}]}
             ]

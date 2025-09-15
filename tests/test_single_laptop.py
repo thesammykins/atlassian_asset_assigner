@@ -5,6 +5,7 @@ This tests the complete flow: authentication, API access, user lookup, and attri
 """
 
 import sys
+
 from src.jira_assets_client import JiraAssetsClient
 from src.jira_user_client import JiraUserClient
 

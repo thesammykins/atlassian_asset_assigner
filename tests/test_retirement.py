@@ -4,8 +4,9 @@ Test script to verify retirement functionality with HW-493.
 This tests the complete retirement flow: authentication, API access, retirement date extraction, status checking, and attribute update.
 """
 
-from src.asset_manager import AssetManager
 import sys
+
+from src.asset_manager import AssetManager
 
 
 def test_retirement():
