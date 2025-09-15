@@ -21,7 +21,12 @@ class TestNewAssetManagerMethods:
     def mock_asset_manager(self):
         """Create a mock asset manager with mocked dependencies."""
         with patch('src.asset_manager.JiraUserClient'), \
-             patch('src.asset_manager.JiraAssetsClient') as mock_assets_client:
+             patch('src.asset_manager.JiraAssetsClient') as mock_assets_client, \
+             patch('src.asset_manager.cache_manager') as mock_cache_manager:
+            
+            # Mock cache manager to return None (cache miss) so API calls are made
+            mock_cache_manager.get_cached_data.return_value = None
+            mock_cache_manager.cache_data.return_value = True
             
             manager = AssetManager()
             manager.assets_client = mock_assets_client.return_value
@@ -42,8 +47,11 @@ class TestNewAssetManagerMethods:
             ]
         }
         
-        # Mock extract_attribute_value to return model names
-        mock_asset_manager.assets_client.extract_attribute_value.side_effect = lambda obj, attr: {
+        # Mock get_attribute_id_by_name for model attribute
+        mock_asset_manager.assets_client.get_attribute_id_by_name.return_value = '146'
+        
+        # Mock extract_attribute_value_by_id to return model names (used by the actual code)
+        mock_asset_manager.assets_client.extract_attribute_value_by_id.side_effect = lambda obj, attr_id: {
             'MODEL-001': 'MacBook Pro 16"',
             'MODEL-002': 'MacBook Air 13"', 
             'MODEL-003': 'ThinkPad X1 Carbon'
@@ -85,6 +93,31 @@ class TestNewAssetManagerMethods:
             mock_status_attr,
             {'id': '146', 'name': 'Model', 'defaultType': {'name': 'Text'}}
         ]
+        
+        # Mock get_attribute_id_by_name for status attribute
+        mock_asset_manager.assets_client.get_attribute_id_by_name.return_value = '145'
+        
+        # Mock objects with status values for the actual implementation
+        mock_status_objects = {
+            'values': [
+                {
+                    'objectKey': 'HW-STATUS-1',
+                    'attributes': [
+                        {
+                            'objectTypeAttributeId': '145',
+                            'objectAttributeValues': [
+                                {'status': {'name': 'Available'}},
+                                {'status': {'name': 'In Use'}},
+                                {'status': {'name': 'Maintenance'}},
+                                {'status': {'name': 'Retired'}}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        mock_asset_manager.assets_client.find_objects_by_aql.return_value = mock_status_objects
 
         # Test the method (should be implemented)
         try:

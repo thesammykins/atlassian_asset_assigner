@@ -35,10 +35,14 @@ class TestNewAssetWorkflowIntegration:
     def mock_full_workflow_manager(self, mock_config):
         """Create a fully mocked asset manager for integration testing."""
         with patch('src.asset_manager.JiraUserClient'), \
-             patch('src.asset_manager.JiraAssetsClient') as mock_assets_client:
+             patch('src.asset_manager.JiraAssetsClient') as mock_assets_client, \
+             patch('src.asset_manager.cache_manager') as mock_cache_manager:
             
             manager = AssetManager(mock_config)
             assets_client = mock_assets_client.return_value
+            
+            # Store reference to the actual client instance
+            manager.assets_client = assets_client
             
             # Mock schema and object type responses
             manager.get_laptops_object_type = MagicMock(return_value={
@@ -109,8 +113,6 @@ class TestNewAssetWorkflowIntegration:
                 ]
             }
             
-            assets_client.find_objects_by_aql.return_value = mock_existing_objects
-            
             # Mock extract_attribute_value for model extraction
             def mock_extract_attribute(obj, attr_name):
                 if attr_name == 'Model':
@@ -123,6 +125,58 @@ class TestNewAssetWorkflowIntegration:
                 return None
             
             assets_client.extract_attribute_value.side_effect = mock_extract_attribute
+            
+            # Mock get_attribute_id_by_name for both model and status attributes
+            def mock_get_attribute_id_by_name(attr_name, object_type_id):
+                attr_map = {
+                    'Model': '146',
+                    'Status': '145'
+                }
+                return attr_map.get(attr_name, '999')
+            
+            assets_client.get_attribute_id_by_name.side_effect = mock_get_attribute_id_by_name
+            
+            # Mock extract_attribute_value_by_id for model extraction
+            def mock_extract_attribute_by_id(obj, attr_id):
+                if str(attr_id) == '146':  # Model attribute
+                    model_map = {
+                        'HW-0001': 'MacBook Pro 16"',
+                        'HW-0002': 'MacBook Air 13"',
+                        'HW-0003': 'ThinkPad X1 Carbon'
+                    }
+                    return model_map.get(obj.get('objectKey'))
+                return None
+            
+            assets_client.extract_attribute_value_by_id.side_effect = mock_extract_attribute_by_id
+            
+            # Mock objects with status values for list_statuses
+            mock_status_objects = {
+                'values': [
+                    {
+                        'objectKey': 'HW-STATUS-1',
+                        'attributes': [
+                            {
+                                'objectTypeAttributeId': '145',
+                                'objectAttributeValues': [
+                                    {'status': {'name': 'Available'}},
+                                    {'status': {'name': 'In Use'}},
+                                    {'status': {'name': 'Maintenance'}},
+                                    {'status': {'name': 'Retired'}}
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+            
+            # Configure find_objects_by_aql to return different data based on query
+            def mock_find_objects_by_aql(query, **kwargs):
+                if 'Status' in query:
+                    return mock_status_objects
+                else:
+                    return mock_existing_objects
+                    
+            assets_client.find_objects_by_aql.side_effect = mock_find_objects_by_aql
             
             # Mock successful object creation
             assets_client.create_object.return_value = {
@@ -137,6 +191,10 @@ class TestNewAssetWorkflowIntegration:
                     'name': 'Laptops'
                 }
             }
+            
+            # Mock cache manager to return None (cache miss) so API calls are made
+            mock_cache_manager.get_cached_data.return_value = None
+            mock_cache_manager.cache_data.return_value = True
             
             return manager
 
