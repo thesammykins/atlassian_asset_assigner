@@ -20,14 +20,10 @@ Usage:
     python main.py --retire-assets --execute # Execute retirement operation
 """
 
-# Ensure local imports resolve when running as a script
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 import argparse
 import json
+import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -36,15 +32,30 @@ import colorama
 from colorama import Fore, Style
 from tqdm import tqdm
 
-from asset_manager import AssetManager, AssetUpdateError, ValidationError
-from config import ConfigurationError, config, setup_logging
-from jira_assets_client import (
-    AssetNotFoundError,
-    JiraAssetsAPIError,
-    ObjectTypeNotFoundError,
-    SchemaNotFoundError,
-)
-from oauth_client import OAuthClient, OAuthError, OAuthFlowError, TokenError
+# Support both package import (src.main) and script execution (python src/main.py)
+
+try:
+    # Package-relative imports when imported as src.main
+    from .asset_manager import AssetManager, AssetUpdateError, ValidationError
+    from .config import ConfigurationError, config, setup_logging
+    from .jira_assets_client import (
+        AssetNotFoundError,
+        JiraAssetsAPIError,
+        ObjectTypeNotFoundError,
+        SchemaNotFoundError,
+    )
+    from .oauth_client import OAuthClient, OAuthError, OAuthFlowError, TokenError
+except ImportError:  # pragma: no cover - fallback for direct script execution
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from asset_manager import AssetManager, AssetUpdateError, ValidationError
+    from config import ConfigurationError, config, setup_logging
+    from jira_assets_client import (
+        AssetNotFoundError,
+        JiraAssetsAPIError,
+        ObjectTypeNotFoundError,
+        SchemaNotFoundError,
+    )
+    from oauth_client import OAuthClient, OAuthError, OAuthFlowError, TokenError
 
 # Initialize colorama for cross-platform colored output
 colorama.init()
