@@ -1,6 +1,4 @@
 import importlib
-import os
-from types import SimpleNamespace
 
 import pytest
 
@@ -107,4 +105,3 @@ def test_single_laptop_flow_with_mocks(monkeypatch):
     update = assets_client.create_attribute_update("Assignee", "acc-123", object_type_id)
     assert update["objectTypeAttributeId"] == 555
     assert update["objectAttributeValues"][0]["value"] == "acc-123"
-

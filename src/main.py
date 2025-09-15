@@ -20,10 +20,14 @@ Usage:
     python main.py --retire-assets --execute # Execute retirement operation
 """
 
-import argparse
-import json
+# Ensure local imports resolve when running as a script
 import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import argparse
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -32,11 +36,8 @@ import colorama
 from colorama import Fore, Style
 from tqdm import tqdm
 
-# Add src directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 from asset_manager import AssetManager, AssetUpdateError, ValidationError
-from config import ConfigurationError, setup_logging, config
+from config import ConfigurationError, config, setup_logging
 from jira_assets_client import (
     AssetNotFoundError,
     JiraAssetsAPIError,

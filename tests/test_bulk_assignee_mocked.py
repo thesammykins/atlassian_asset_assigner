@@ -1,4 +1,5 @@
 import importlib
+
 import pytest
 
 
@@ -151,4 +152,3 @@ def test_bulk_assignee_flow_with_mocks(monkeypatch):
     assert res3["success"] is False
     assert res3["skipped"] is True
     assert res3["skip_reason"].startswith("Assignee already set to")
-
