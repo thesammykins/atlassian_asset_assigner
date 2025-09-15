@@ -449,8 +449,7 @@ class TestNewAssetManagerAPIIntegration:
                     'statusTypeValues': [
                         {'id': '1', 'name': 'Available'},
                         {'id': '2', 'name': 'In Use'},
-                        {'id': '3', 'name': 'Maintenance'},
-            {'id': '146', 'name': 'Model Name', 'defaultType': {'name': 'Text'}, 'objectAttributeValues': [{'displayValue': 'MacBook Pro 16"'}, {'displayValue': 'ThinkPad X1'}, {'displayValue': 'Surface Pro'}]},
+                        {'id': '3', 'name': 'Maintenance'}
                     ]
                 }
             }
