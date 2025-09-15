@@ -9,12 +9,13 @@ and attribute updates with validation.
 import csv
 import logging
 from datetime import datetime
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .cache_manager import cache_manager
-from .config import config
-from .jira_assets_client import (
+from cache_manager import cache_manager
+from config import config
+from jira_assets_client import (
     AssetNotFoundError,
     AttributeNotFoundError,
     JiraAssetsAPIError,
@@ -22,7 +23,7 @@ from .jira_assets_client import (
     ObjectTypeNotFoundError,
     SchemaNotFoundError,
 )
-from .jira_user_client import (
+from jira_user_client import (
     JiraUserAPIError,
     JiraUserClient,
     MultipleUsersFoundError,
@@ -65,6 +66,56 @@ class AssetManager:
         self.asset_status_attribute = self.config.asset_status_attribute
         
         self.logger.info("Initialized Asset Manager")
+    
+    def normalize_date_input(self, date_str: str) -> str:
+        """Public helper to normalize a date string to YYYY-MM-DD.
+
+        Raises ValidationError if the date is invalid.
+        """
+        return self._normalize_date_yyyy_mm_dd(date_str)
+
+    def _normalize_date_yyyy_mm_dd(self, date_str: str) -> str:
+        """
+        Normalize various common date inputs to YYYY-MM-DD.
+
+        Accepts:
+        - YYYY-MM-DD (already correct)
+        - YYYY/MM/DD
+        - DD-MM-YYYY
+        - DD/MM/YYYY
+        - D-M-YYYY or D/M/YYYY (single-digit day/month)
+
+        Raises ValidationError for invalid formats or impossible dates.
+        """
+        s = (date_str or "").strip()
+        if not s:
+            raise ValidationError("Purchase date cannot be empty if provided")
+
+        # Unify separators
+        s_norm = s.replace("/", "-")
+
+        parts = s_norm.split("-")
+        if len(parts) != 3:
+            raise ValidationError("Invalid purchase date format. Use YYYY-MM-DD (e.g., 2025-09-15)")
+
+        try:
+            a, b, c = parts
+            # Decide ordering by first token length: 4 => year-first, else day-first
+            if len(a) == 4 and a.isdigit():
+                year = int(a)
+                month = int(b)
+                day = int(c)
+            else:
+                # day-month-year
+                day = int(a)
+                month = int(b)
+                year = int(c)
+
+            # Validate by constructing a datetime
+            dt = datetime(year, month, day)
+            return f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d}"
+        except ValueError:
+            raise ValidationError("Invalid purchase date value. Use YYYY-MM-DD (e.g., 2025-09-15)")
     
     def get_hardware_schema(self) -> Dict[str, Any]:
         """
@@ -1136,9 +1187,10 @@ class AssetManager:
     def list_statuses(self) -> List[str]:
         """
         Get list of available status options for laptop assets.
-        
-        Since the status attribute uses typeValueMulti with status IDs,
-        we extract status names from existing assets that have status values.
+
+        Preferred source is the object type's Status attribute metadata
+        (typeValue.statusTypeValues). Falls back to scanning existing
+        assets if metadata is unavailable or empty.
         
         Uses 24-hour caching to improve performance on subsequent calls.
         
@@ -1160,62 +1212,61 @@ class AssetManager:
         
         # Not in cache, load from API
         self.logger.info("Retrieving available status options for laptop assets")
-        
+
         try:
             # Get laptops object type
             laptops_object_type = self.get_laptops_object_type()
             object_type_id = laptops_object_type['id']
-            
-            # Get the attribute ID for the Status attribute
-            status_attribute_id = self.assets_client.get_attribute_id_by_name(
-                self.config.asset_status_attribute, object_type_id
-            )
-            
-            # Use AQL to find assets with non-empty status values
-            aql_query = f'objectType = "{self.laptops_object_schema_name}" AND "{self.config.asset_status_attribute}" IS NOT EMPTY'
-            
-            self.logger.debug(f"Executing AQL query: {aql_query}")
-            self.logger.debug(f"Status attribute '{self.config.asset_status_attribute}' has ID: {status_attribute_id}")
-            
-            # Get a sample of objects with status values (limit to reduce API calls)
-            result = self.assets_client.find_objects_by_aql(aql_query, limit=50)
-            objects = result.get('values', [])
-            
-            self.logger.debug(f"Found {len(objects)} objects with status values")
-            
-            # Extract unique status names from the objects
-            status_names = set()
-            for obj in objects:
-                # Look for the status attribute in this object
-                attributes = obj.get('attributes', [])
-                for attr in attributes:
-                    if str(attr.get('objectTypeAttributeId')) == str(status_attribute_id):
-                        # Get the status values
-                        attribute_values = attr.get('objectAttributeValues', [])
-                        for val in attribute_values:
-                            # Check if this has status information
-                            status_info = val.get('status')
-                            if status_info and 'name' in status_info:
-                                status_name = status_info['name']
-                                status_names.add(status_name)
-                                self.logger.debug(f"Found status: {status_name}")
-                            else:
-                                # Fallback to displayValue
-                                display_value = val.get('displayValue')
-                                if display_value:
-                                    status_names.add(display_value)
-                                    self.logger.debug(f"Found status (displayValue): {display_value}")
-            
-            # Convert to sorted list
-            sorted_statuses = sorted(status_names)
-            
-            self.logger.info(f"Retrieved {len(sorted_statuses)} status options from {len(objects)} objects")
-            
+
+            # First try: read from attribute metadata
+            attributes = self.assets_client.get_object_attributes(object_type_id)
+            status_attr = next((a for a in attributes if a.get('name') == self.config.asset_status_attribute), None)
+            status_names: List[str] = []
+
+            if status_attr and isinstance(status_attr.get('typeValue'), dict):
+                type_value = status_attr.get('typeValue', {})
+                type_values = type_value.get('statusTypeValues') or type_value.get('statusValues') or []
+                if isinstance(type_values, list) and type_values:
+                    status_names = [v.get('name') for v in type_values if v.get('name')]
+                    status_names = sorted({name for name in status_names if isinstance(name, str)})
+                    self.logger.info(f"Retrieved {len(status_names)} status options from attribute metadata")
+
+            if not status_names:
+                # Fallback: scan objects with non-empty status
+                status_attribute_id = self.assets_client.get_attribute_id_by_name(
+                    self.config.asset_status_attribute, object_type_id
+                )
+                aql_query = (
+                    f'objectType = "{self.laptops_object_schema_name}" '
+                    f'AND "{self.config.asset_status_attribute}" IS NOT EMPTY'
+                )
+                self.logger.debug(f"Executing AQL query: {aql_query}")
+                self.logger.debug(f"Status attribute '{self.config.asset_status_attribute}' has ID: {status_attribute_id}")
+
+                result = self.assets_client.find_objects_by_aql(aql_query, limit=50)
+                objects = result.get('values', [])
+                self.logger.debug(f"Found {len(objects)} objects with status values")
+
+                names_set = set()
+                for obj in objects:
+                    for attr in obj.get('attributes', []):
+                        if str(attr.get('objectTypeAttributeId')) == str(status_attribute_id):
+                            for val in attr.get('objectAttributeValues', []):
+                                status_info = val.get('status')
+                                if status_info and 'name' in status_info:
+                                    names_set.add(status_info['name'])
+                                else:
+                                    display_value = val.get('displayValue')
+                                    if display_value:
+                                        names_set.add(display_value)
+
+                status_names = sorted(names_set)
+                self.logger.info(f"Retrieved {len(status_names)} status options from {len(objects)} objects")
+
             # Cache the results for future use (24-hour TTL)
-            cache_manager.cache_data(cache_key, sorted_statuses)
-            
-            return sorted_statuses
-            
+            cache_manager.cache_data(cache_key, status_names)
+            return status_names
+
         except Exception as e:
             self.logger.error(f"Failed to retrieve status options: {e}", exc_info=True)
             raise
@@ -1509,23 +1560,31 @@ class AssetManager:
                 if attr.get('name') == self.config.asset_status_attribute:
                     status_attribute = attr
                     break
-            
+
             if not status_attribute:
                 raise ValueError(f"Status attribute '{self.config.asset_status_attribute}' not found")
-            
+
+            # If the attribute is not a real Status type, there are no IDs to resolve
+            default_type_name = (status_attribute.get('defaultType') or {}).get('name')
+            if default_type_name and default_type_name.lower() != 'status':
+                self.logger.debug(
+                    f"Attribute '{self.config.asset_status_attribute}' is '{default_type_name}', returning name directly"
+                )
+                return status_name
+
             # Get status type values from attribute metadata
             type_value = status_attribute.get('typeValue', {})
-            status_type_values = type_value.get('statusTypeValues', [])
-            
+            status_type_values = type_value.get('statusTypeValues') or type_value.get('statusValues') or []
+
             # Find matching status name in the available status values
             for status_value in status_type_values:
                 if status_value.get('name') == status_name:
                     status_id = status_value.get('id')
                     self.logger.debug(f"Resolved status '{status_name}' to ID: {status_id}")
                     return str(status_id)
-            
+
             # If not found, get available status names for error message
-            available_statuses = [sv.get('name') for sv in status_type_values]
+            available_statuses = [sv.get('name') for sv in status_type_values if sv.get('name')]
             raise ValueError(f"Status '{status_name}' not found. Available statuses: {available_statuses}")
             
         except Exception as e:
@@ -1643,22 +1702,6 @@ class AssetManager:
             ValidationError: For invalid input parameters
             JiraAssetsAPIError: For API errors
         """
-        # Log basic info, with optional fields if provided
-        optional_parts = []
-        if invoice_number:
-            optional_parts.append(f"invoice={invoice_number}")
-        if purchase_date:
-            optional_parts.append(f"purchase_date={purchase_date}")
-        if cost:
-            optional_parts.append(f"cost={cost}")
-        if colour:
-            optional_parts.append(f"colour={colour}")
-        if supplier:
-            optional_parts.append(f"supplier={supplier}")
-        
-        optional_str = f", {', '.join(optional_parts)}" if optional_parts else ""
-        self.logger.info(f"Creating new asset: serial={serial}, model={model_name}, status={status}, remote={is_remote}{optional_str}")
-        
         # Initialize result dictionary
         result = {
             'success': False,
@@ -1706,7 +1749,31 @@ class AssetManager:
             colour = colour.strip()
         if supplier:
             supplier = supplier.strip()
+
+        # Normalize and validate purchase date to YYYY-MM-DD if provided
+        if purchase_date:
+            try:
+                purchase_date = self._normalize_date_yyyy_mm_dd(purchase_date)
+            except ValidationError as e:
+                result['error'] = str(e)
+                return result
+
+        # Log basic info, with optional fields if provided (after normalization)
+        optional_parts = []
+        if invoice_number:
+            optional_parts.append(f"invoice={invoice_number}")
+        if purchase_date:
+            optional_parts.append(f"purchase_date={purchase_date}")
+        if cost:
+            optional_parts.append(f"cost={cost}")
+        if colour:
+            optional_parts.append(f"colour={colour}")
+        if supplier:
+            optional_parts.append(f"supplier={supplier}")
         
+        optional_str = f", {', '.join(optional_parts)}" if optional_parts else ""
+        self.logger.info(f"Creating new asset: serial={serial}, model={model_name}, status={status}, remote={is_remote}{optional_str}")
+
         # Update result with normalized inputs
         result.update({
             'serial_number': serial,
@@ -1805,14 +1872,7 @@ class AssetManager:
                 if attr_name and attr_id:
                     attr_map[attr_name] = attr_id
             
-            # Resolve status name to status ID using the new method
-            try:
-                status_id = self.resolve_status_name_to_id(status)
-            except ValueError as e:
-                error_msg = str(e)
-                result['error'] = error_msg
-                self.logger.error(error_msg)
-                return result
+            # Do not pre-resolve status here; resolution depends on attribute type
             
             # Resolve model name to object key (for reference attribute)
             try:
@@ -1840,18 +1900,30 @@ class AssetManager:
                     'objectAttributeValues': [{'value': model_object_key}]
                 })
             
-            # Status attribute (use status ID if attribute exists)
+            # Status attribute (handle both Status-type and text/select attributes)
             if self.config.asset_status_attribute in attr_map:
+                # Determine attribute default type to decide how to set value
+                status_attr_def = next(
+                    (a for a in attributes if a.get('name') == self.config.asset_status_attribute),
+                    None
+                )
+                default_type = (status_attr_def.get('defaultType') or {}).get('name') if status_attr_def else None
                 try:
-                    status_id = self.resolve_status_name_to_id(status)
+                    if default_type and default_type.lower() == 'status':
+                        # Resolve to status ID for true Status attributes
+                        status_value_to_set = self.resolve_status_name_to_id(status)
+                    else:
+                        # For non-Status attributes, set the display name directly
+                        status_value_to_set = status
                 except ValueError as e:
                     error_msg = str(e)
                     result['error'] = error_msg
                     self.logger.error(error_msg)
                     return result
+
                 payload_attributes.append({
                     'objectTypeAttributeId': attr_map[self.config.asset_status_attribute],
-                    'objectAttributeValues': [{'value': status_id}]
+                    'objectAttributeValues': [{'value': status_value_to_set}]
                 })
             
             # Remote Asset attribute (if available) - keep this hardcoded as it might not exist in all schemas

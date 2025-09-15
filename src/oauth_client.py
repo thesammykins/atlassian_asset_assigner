@@ -20,7 +20,7 @@ from urllib.parse import parse_qs
 import requests
 from requests_oauthlib import OAuth2Session
 
-from .config import config
+from config import config
 
 
 class OAuthError(Exception):

@@ -947,44 +947,57 @@ def run_new_asset_workflow(asset_manager: AssetManager) -> int:
                 statuses = asset_manager.list_statuses()
             except Exception as e:
                 print_error(f"Error loading statuses: {e}")
-                print_error("Cannot create asset without valid statuses.")
-                continue
+                statuses = []
                 
             if not statuses:
-                print_error("No statuses available. Cannot create asset.")
-                continue
-                
-            print(f"\n{Fore.BLUE}Available statuses:{Style.RESET_ALL}")
-            for i, status in enumerate(statuses, 1):
-                print(f"  {i}. {status}")
-            print(f"  {Fore.YELLOW}q. Quit{Style.RESET_ALL}")
-            
-            while True:
-                try:
-                    choice = input(f"\n{Fore.CYAN}Choose a status [1-{len(statuses)}] or 'q': {Style.RESET_ALL}").strip()
-                except (EOFError, KeyboardInterrupt):
-                    print("\n👋 Goodbye!")
-                    return 0
-                    
-                if choice.lower() == 'q':
-                    print("👋 Goodbye!")
-                    return 0
-                
-                # Check if it's a direct status name match first
-                if choice in statuses:
-                    status_name = choice
-                    break
-                    
-                # Try numeric selection
-                try:
-                    choice_num = int(choice)
-                    if 1 <= choice_num <= len(statuses):
-                        status_name = statuses[choice_num - 1]
+                # Allow free-form status entry when no predefined statuses are configured
+                print_warning("No predefined statuses found in schema. Enter a custom status name.")
+                while True:
+                    try:
+                        status_name = input(f"\n{Fore.CYAN}Enter status name (e.g., 'In Stock') or 'q' to quit: {Style.RESET_ALL}").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        print("\n👋 Goodbye!")
+                        return 0
+                    if status_name.lower() == 'q':
+                        print("👋 Goodbye!")
+                        return 0
+                    if status_name:
                         break
                     else:
-                        print_error(f"Please enter a number between 1 and {len(statuses)}.")
-                except ValueError:
-                    print_error(f"Please enter a valid number between 1 and {len(statuses)} or exact status name.")
+                        print_error("Status cannot be empty.")
+                
+            else:
+                print(f"\n{Fore.BLUE}Available statuses:{Style.RESET_ALL}")
+                for i, status in enumerate(statuses, 1):
+                    print(f"  {i}. {status}")
+                print(f"  {Fore.YELLOW}q. Quit{Style.RESET_ALL}")
+                
+                while True:
+                    try:
+                        choice = input(f"\n{Fore.CYAN}Choose a status [1-{len(statuses)}] or 'q': {Style.RESET_ALL}").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        print("\n👋 Goodbye!")
+                        return 0
+                    
+                    if choice.lower() == 'q':
+                        print("👋 Goodbye!")
+                        return 0
+                
+                    # Check if it's a direct status name match first
+                    if choice in statuses:
+                        status_name = choice
+                        break
+                    
+                    # Try numeric selection
+                    try:
+                        choice_num = int(choice)
+                        if 1 <= choice_num <= len(statuses):
+                            status_name = statuses[choice_num - 1]
+                            break
+                        else:
+                            print_error(f"Please enter a number between 1 and {len(statuses)}.")
+                    except ValueError:
+                        print_error(f"Please enter a valid number between 1 and {len(statuses)} or exact status name.")
             
             # 4. Ask if this is for a remote user
             while True:
@@ -1029,18 +1042,30 @@ def run_new_asset_workflow(asset_manager: AssetManager) -> int:
             # Purchase Date (optional)
             while True:
                 try:
-                    date_input = input(f"\n{Fore.CYAN}📅 Purchase Date (optional, format: YYYY-MM-DD, press Enter to skip): {Style.RESET_ALL}").strip()
+                    date_input = input(
+                        f"\n{Fore.CYAN}📅 Purchase Date (optional, format: YYYY-MM-DD, press Enter to skip): {Style.RESET_ALL}"
+                    ).strip()
                 except (EOFError, KeyboardInterrupt):
                     print("\n👋 Goodbye!")
                     return 0
-                
+
                 if date_input.lower() == 'q':
                     print("👋 Goodbye!")
                     return 0
-                
+
                 # Allow empty input (skip)
-                optional_fields['purchase_date'] = date_input if date_input else None
-                break
+                if not date_input:
+                    optional_fields['purchase_date'] = None
+                    break
+
+                # Validate and normalize date input before proceeding
+                try:
+                    normalized_date = asset_manager.normalize_date_input(date_input)
+                    optional_fields['purchase_date'] = normalized_date
+                    break
+                except ValidationError as ve:
+                    print_error(str(ve))
+                    # re-prompt
             
             # Cost (optional)
             while True:
