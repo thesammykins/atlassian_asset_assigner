@@ -41,7 +41,10 @@ class TestNewAssetManagerMethods:
         # Mock AQL query response with model names
         mock_asset_manager.assets_client.find_objects_by_aql.return_value = {
             'values': [
-                {'objectKey': 'MODEL-001', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'MacBook Pro 16"'}]}]},
+                {
+                    'objectKey': 'MODEL-001',
+                    'attributes': [{'name': 'Model Name', 'values': [{'value': 'MacBook Pro 16"'}]}],
+                },
                 {'objectKey': 'MODEL-002', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'MacBook Air 13"'}]}]},
                 {'objectKey': 'MODEL-003', 'attributes': [{'name': 'Model Name', 'values': [{'value': 'ThinkPad X1 Carbon'}]}]}
             ]
@@ -288,9 +291,10 @@ class TestNewAssetManagerMethods:
             {'id': '146', 'name': 'Model Name', 'defaultType': {'name': 'Reference'}},
             {'id': '147', 'name': 'Remote Asset', 'defaultType': {'name': 'Boolean'}}
         ]
+        expected_key = f'HW-{serial[-3:]}'  # Extract to variable for readability
         mock_asset_manager.assets_client.create_object.return_value = {
             'id': '999',
-            'objectKey': f'HW-{serial[-3:]}',
+            'objectKey': expected_key,
             'label': f'{model} - {serial}'
         }
 
