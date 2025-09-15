@@ -37,7 +37,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import config
 from asset_manager import AssetManager, AssetUpdateError, ValidationError
-from cache_manager import cache_manager
 from config import ConfigurationError, setup_logging
 from jira_assets_client import (
     AssetNotFoundError,
@@ -1129,7 +1128,7 @@ def run_new_asset_workflow(asset_manager: AssetManager) -> int:
                             else:
                                 print_error(f"Please enter a number between 1 and {len(suppliers) + 1}.")
                         except ValueError:
-                            print_error(f"Please enter a valid number, supplier name, 's' to skip, or 'q' to quit.")
+                            print_error("Please enter a valid number, supplier name, 's' to skip, or 'q' to quit.")
                 else:
                     print_warning("No suppliers found. Supplier field will be skipped.")
                     supplier_choice = None

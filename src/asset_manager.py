@@ -12,13 +12,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from config import config
 from cache_manager import cache_manager
+from config import config
 from jira_assets_client import (
     AssetNotFoundError,
+    AttributeNotFoundError,
     JiraAssetsAPIError,
     JiraAssetsClient,
     ObjectTypeNotFoundError,
+    SchemaNotFoundError,
 )
 from jira_user_client import (
     JiraUserAPIError,
@@ -750,11 +752,6 @@ class AssetManager:
         
         return summary
     
-    def clear_caches(self):
-        """Clear all caches."""
-        self.logger.info("Clearing all caches")
-        self.user_client.clear_cache()
-        self.assets_client.clear_cache()
     
     def get_cache_stats(self) -> Dict[str, Any]:
         """
@@ -1779,17 +1776,12 @@ class AssetManager:
             
             # Create attribute mapping
             attr_map = {}
-            status_attr_info = None
             
             for attr in attributes:
                 attr_name = attr.get('name')
                 attr_id = attr.get('id')
                 if attr_name and attr_id:
                     attr_map[attr_name] = attr_id
-                    
-                    # Store status attribute info for ID resolution
-                    if attr_name == self.config.asset_status_attribute:
-                        status_attr_info = attr
             
             # Resolve status name to status ID using the new method
             try:

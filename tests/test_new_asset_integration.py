@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch, call, Mock
 from io import StringIO
-import json
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.asset_manager import AssetManager
-from src.jira_assets_client import JiraAssetsAPIError
 from src.config import Config
+from src.jira_assets_client import JiraAssetsAPIError
 
 
 class TestNewAssetWorkflowIntegration:
@@ -184,14 +183,14 @@ class TestNewAssetWorkflowIntegration:
             manager.assets_client.find_objects_by_aql.side_effect = JiraAssetsAPIError("Connection failed")
             
             with pytest.raises(JiraAssetsAPIError):
-                models = manager.list_models()
+                manager.list_models()
                 
             # Reset and test status fetching failure
             manager.assets_client.find_objects_by_aql.side_effect = None
             manager.assets_client.get_object_attributes.side_effect = JiraAssetsAPIError("Permission denied")
             
             with pytest.raises(JiraAssetsAPIError):
-                statuses = manager.list_statuses()
+                manager.list_statuses()
                 
             # Reset and test asset creation failure
             manager.assets_client.get_object_attributes.side_effect = None
@@ -297,7 +296,7 @@ class TestNewAssetWorkflowIntegration:
         manager = mock_full_workflow_manager
         
         try:
-            result = manager.create_asset(
+            manager.create_asset(
                 serial='MAPPING-TEST-001',
                 model_name='MacBook Pro 16"',
                 status='In Use',
@@ -348,7 +347,7 @@ class TestNewAssetWorkflowIntegration:
             }
             
             for status_name, expected_id in status_name_to_id.items():
-                result = manager.create_asset(
+                manager.create_asset(
                     serial=f'STATUS-TEST-{expected_id}',
                     model_name='Test Model',
                     status=status_name,
@@ -479,7 +478,7 @@ class TestNewAssetWorkflowIntegration:
             
             # 2. Show and select model
             models = manager.list_models()
-            print(f"Available models:")
+            print("Available models:")
             for i, model in enumerate(models, 1):
                 print(f"{i}. {model}")
             
@@ -489,7 +488,7 @@ class TestNewAssetWorkflowIntegration:
             
             # 3. Show and select status
             statuses = manager.list_statuses()
-            print(f"Available statuses:")
+            print("Available statuses:")
             for i, status in enumerate(statuses, 1):
                 print(f"{i}. {status}")
                 

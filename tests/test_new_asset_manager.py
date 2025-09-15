@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch, Mock
-from typing import Dict, Any, List
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.asset_manager import AssetManager
-from src.jira_assets_client import JiraAssetsAPIError, AttributeNotFoundError
+from src.jira_assets_client import JiraAssetsAPIError
 
 
 class TestNewAssetManagerMethods:
@@ -152,8 +151,6 @@ class TestNewAssetManagerMethods:
             assert object_type_id == '23'
             
             # Check attributes structure
-            expected_attribute_names = ['Serial Number', 'Status', 'Model', 'Remote Asset']
-            attribute_names = []
             
             # This part would need to be adjusted based on actual implementation
             # but shows the expected test structure

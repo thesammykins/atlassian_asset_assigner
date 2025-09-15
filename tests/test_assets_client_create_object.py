@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch, Mock
-from typing import Dict, Any, List
-import json
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from src.jira_assets_client import JiraAssetsClient, JiraAssetsAPIError
+from src.jira_assets_client import JiraAssetsAPIError, JiraAssetsClient
 
 
 class TestJiraAssetsClientCreateObject:
@@ -61,7 +60,7 @@ class TestJiraAssetsClientCreateObject:
 
         # Test the method (should be implemented)
         try:
-            result = client.create_object(
+            client.create_object(
                 object_type_id='23',
                 attributes=[
                     {
@@ -102,7 +101,7 @@ class TestJiraAssetsClientCreateObject:
                 }
             ]
             
-            result = client.create_object(
+            client.create_object(
                 object_type_id='23',
                 attributes=attributes
             )
@@ -266,7 +265,7 @@ class TestJiraAssetsClientCreateObject:
         client.session.post.return_value = mock_response
 
         try:
-            result = client.create_object(
+            client.create_object(
                 object_type_id='23',
                 attributes=[],
                 has_avatar=True,

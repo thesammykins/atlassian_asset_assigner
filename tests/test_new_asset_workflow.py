@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch, call
 from io import StringIO
+from pathlib import Path
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -128,7 +128,7 @@ class TestInteractiveAssetWorkflow:
         ]
         
         # Test that create_asset would be called twice with correct parameters
-        expected_calls = [
+        [
             call(
                 serial='SN11111',
                 model_name='MacBook Air 13"',
@@ -446,7 +446,7 @@ class TestWorkflowErrorHandling:
         """Test workflow handles API connection failures gracefully."""
         # Test that exceptions are caught and handled
         try:
-            models = failing_asset_manager.list_models()
+            failing_asset_manager.list_models()
         except Exception as e:
             error_message = str(e)
             assert "API connection failed" in error_message
@@ -454,7 +454,7 @@ class TestWorkflowErrorHandling:
     def test_workflow_handles_permission_errors(self, failing_asset_manager):
         """Test workflow handles permission errors gracefully."""
         try:
-            statuses = failing_asset_manager.list_statuses()
+            failing_asset_manager.list_statuses()
         except Exception as e:
             error_message = str(e)
             assert "Permission denied" in error_message
@@ -462,7 +462,7 @@ class TestWorkflowErrorHandling:
     def test_workflow_handles_rate_limiting(self, failing_asset_manager):
         """Test workflow handles rate limiting gracefully.""" 
         try:
-            result = failing_asset_manager.create_asset(
+            failing_asset_manager.create_asset(
                 serial="SN12345",
                 model_name="Test Model",
                 status="Available",
