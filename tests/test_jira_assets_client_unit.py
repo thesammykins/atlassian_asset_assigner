@@ -20,7 +20,7 @@ def _sample_object_with_attrs() -> Dict[str, Any]:
 
 
 def test_extract_attribute_value_simple():
-    from jira_assets_client import JiraAssetsClient
+    from src.jira_assets_client import JiraAssetsClient
 
     client = JiraAssetsClient()
     obj = _sample_object_with_attrs()
@@ -30,7 +30,7 @@ def test_extract_attribute_value_simple():
 
 
 def test_create_attribute_update_uses_attribute_id(monkeypatch):
-    from jira_assets_client import JiraAssetsClient
+    from src.jira_assets_client import JiraAssetsClient
 
     client = JiraAssetsClient()
 

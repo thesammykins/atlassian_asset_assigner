@@ -4,7 +4,13 @@ import pytest
 
 
 def test_config_valid_env_properties(monkeypatch):
-    # Arrange: ensure a valid environment
+    # Clear any existing OAuth env vars that might affect the test
+    monkeypatch.delenv("OAUTH_CLIENT_ID", raising=False)
+    monkeypatch.delenv("OAUTH_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("OAUTH_REDIRECT_URI", raising=False)
+    monkeypatch.delenv("OAUTH_SCOPES", raising=False)
+    
+    # Arrange: ensure a valid environment with basic auth
     monkeypatch.setenv("JIRA_DOMAIN", "example.atlassian.net")
     monkeypatch.setenv("ASSETS_WORKSPACE_ID", "123")
     monkeypatch.setenv("AUTH_METHOD", "basic")
@@ -12,14 +18,14 @@ def test_config_valid_env_properties(monkeypatch):
     monkeypatch.setenv("JIRA_API_TOKEN", "dev_token")
 
     # Act: import after env is set
-    import config as cfg
+    from src import config
 
     # Assert: derived properties
-    assert cfg.config.jira_base_url == "https://example.atlassian.net"
-    assert cfg.config.auth_method == "basic"
-    assert cfg.config.is_oauth_configured() is False
-    assert isinstance(cfg.config.max_requests_per_minute, int)
-    assert cfg.config.max_requests_per_minute >= 1
+    assert config.jira_base_url == "https://example.atlassian.net"
+    assert config.auth_method == "basic"
+    assert config.is_oauth_configured() is False
+    assert isinstance(config.max_requests_per_minute, int)
+    assert config.max_requests_per_minute >= 1
 
 
 @pytest.mark.skip(reason="Module reload with global config instance causes test complexity - placeholder detection works in practice")

@@ -6,10 +6,7 @@ This tests the complete retirement flow: authentication, API access, retirement 
 
 import sys
 
-sys.path.append('src')
-
-
-from asset_manager import AssetManager
+from src.asset_manager import AssetManager
 
 
 def test_retirement():

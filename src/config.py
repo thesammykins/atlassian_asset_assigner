@@ -144,6 +144,41 @@ class Config:
         return os.getenv('ASSET_STATUS_ATTRIBUTE', 'Asset Status')
     
     @property
+    def model_name_attribute(self) -> str:
+        """Get the model name attribute name."""
+        return os.getenv('MODEL_NAME_ATTRIBUTE', 'Model Name')
+    
+    @property
+    def serial_number_attribute(self) -> str:
+        """Get the serial number attribute name."""
+        return os.getenv('SERIAL_NUMBER_ATTRIBUTE', 'Serial Number')
+    
+    @property
+    def invoice_number_attribute(self) -> str:
+        """Get the invoice number attribute name."""
+        return os.getenv('INVOICE_NUMBER_ATTRIBUTE', 'Invoice Number')
+    
+    @property
+    def purchase_date_attribute(self) -> str:
+        """Get the purchase date attribute name."""
+        return os.getenv('PURCHASE_DATE_ATTRIBUTE', 'Purchase Date')
+    
+    @property
+    def cost_attribute(self) -> str:
+        """Get the cost attribute name."""
+        return os.getenv('COST_ATTRIBUTE', 'Cost')
+    
+    @property
+    def colour_attribute(self) -> str:
+        """Get the colour attribute name."""
+        return os.getenv('COLOUR_ATTRIBUTE', 'Colour')
+    
+    @property
+    def supplier_attribute(self) -> str:
+        """Get the supplier attribute name."""
+        return os.getenv('SUPPLIER_ATTRIBUTE', 'Supplier')
+    
+    @property
     def max_requests_per_minute(self) -> int:
         """Get the maximum requests per minute for rate limiting."""
         return int(os.getenv('MAX_REQUESTS_PER_MINUTE', '300'))
@@ -181,12 +216,12 @@ class Config:
     @property
     def oauth_redirect_uri(self) -> str:
         """Get the OAuth redirect URI."""
-        return os.getenv('OAUTH_REDIRECT_URI', 'http://localhost:8080/callback')
+        return os.getenv('OAUTH_REDIRECT_URI', '')
     
     @property
     def oauth_scopes(self) -> str:
         """Get the OAuth scopes."""
-        return os.getenv('OAUTH_SCOPES', 'read:jira-user read:cmdb-object:jira read:cmdb-schema:jira write:cmdb-object:jira')
+        return os.getenv('OAUTH_SCOPES', '')
     
     def get_basic_auth(self) -> tuple[str, str]:
         """

@@ -34,10 +34,32 @@ def test_cli_new_adds_single_asset(monkeypatch, serial, model, status, remote_in
     mock_manager = MagicMock()
     mock_manager.list_models.return_value = ["Laptop Model A", "Laptop Model B"]
     mock_manager.list_statuses.return_value = ["In Use", "Storage"]
-
+    mock_manager.list_suppliers.return_value = []  # Empty suppliers to skip that section
+    mock_manager.create_asset.return_value = {'success': True, 'object_key': 'HW-123'}
+    mock_manager.clear_caches = MagicMock()  # Mock cache clearing method
+    
+    # Mock cache manager to avoid file system interactions
+    monkeypatch.setattr("src.cache_manager.cache_manager.get_cached_data", lambda key: None)
+    monkeypatch.setattr("src.cache_manager.cache_manager.cache_data", lambda key, data: True)
+    
     monkeypatch.setattr("src.main.AssetManager", lambda: mock_manager)
 
-    user_inputs = iter([serial, model, status, remote_input, "n"])
+    # Simulate user inputs for all prompts in the workflow:
+    # 1. Serial number, 2. Model choice, 3. Status choice, 4. Remote (y/n),
+    # 5. Invoice (skip), 6. Purchase date (skip), 7. Cost (skip), 8. Colour (skip), 
+    # 9. Supplier (skip), 10. Add another asset (n)
+    user_inputs = iter([
+        serial,        # Serial number
+        model,         # Model choice (exact name match)
+        status,        # Status choice (exact name match)
+        remote_input,  # Remote user (y/n)
+        "",            # Invoice number (skip)
+        "",            # Purchase date (skip)
+        "",            # Cost (skip)
+        "",            # Colour (skip)
+        "s",           # Supplier (skip)
+        "n"            # Add another asset (no)
+    ])
     monkeypatch.setattr("builtins.input", lambda *args: next(user_inputs))
 
     monkeypatch.setattr(sys, "argv", ["main.py", "--new"])
@@ -50,5 +72,10 @@ def test_cli_new_adds_single_asset(monkeypatch, serial, model, status, remote_in
         model_name=model,
         status=status,
         is_remote=expected_remote,
+        invoice_number=None,
+        purchase_date=None,
+        cost=None,
+        colour=None,
+        supplier=None
     )
     assert exit_code == 0

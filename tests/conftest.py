@@ -1,5 +1,8 @@
 import os
 import sys
+from pathlib import Path
+
+import pytest
 
 
 def pytest_sessionstart(session):
@@ -17,4 +20,28 @@ def pytest_sessionstart(session):
     os.environ.setdefault("JIRA_API_TOKEN", "token_ci_123")
     os.environ.setdefault("LOG_LEVEL", "INFO")
     # Keep default LOG_TO_FILE (true); tests avoid writing sensitive data
+
+
+@pytest.fixture(autouse=True)
+def clear_cache_before_each_test():
+    """Clear cache files before each test to ensure clean state."""
+    # Clear any existing cache files with test workspace ID
+    cache_dir = Path("cache")
+    if cache_dir.exists():
+        # Remove cache files for test workspace ID "1"
+        for cache_file in cache_dir.glob("*_1.json"):
+            try:
+                cache_file.unlink()
+            except OSError:
+                pass  # Ignore errors if file doesn't exist
+    
+    yield
+    
+    # Clean up after test as well
+    if cache_dir.exists():
+        for cache_file in cache_dir.glob("*_1.json"):
+            try:
+                cache_file.unlink()
+            except OSError:
+                pass
 

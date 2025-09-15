@@ -559,6 +559,62 @@ class JiraAssetsClient:
         
         return None
     
+    def extract_attribute_value_by_id(self, object_data: Dict[str, Any], attribute_id: str) -> Any:
+        """
+        Extract the value of a specific attribute from an object using attribute ID.
+        
+        This method works with AQL responses that only include objectTypeAttributeId
+        instead of the full objectTypeAttribute information.
+        
+        Args:
+            object_data: The object data from the API
+            attribute_id: ID of the attribute to extract (as string)
+            
+        Returns:
+            The attribute value, or None if not found
+        """
+        attributes = object_data.get('attributes', [])
+        
+        for attribute in attributes:
+            if str(attribute.get('objectTypeAttributeId')) == str(attribute_id):
+                # Handle different attribute value types
+                attribute_values = attribute.get('objectAttributeValues', [])
+                if not attribute_values:
+                    return None
+                
+                # For simple attributes, return the display value
+                if len(attribute_values) == 1:
+                    return attribute_values[0].get('displayValue')
+                
+                # For multi-value attributes, return list
+                return [val.get('displayValue') for val in attribute_values]
+        
+        return None
+    
+    def get_attribute_id_by_name(self, attribute_name: str, object_type_id: int) -> str:
+        """
+        Get the attribute ID for a given attribute name within an object type.
+        
+        Args:
+            attribute_name: Name of the attribute
+            object_type_id: The object type ID
+            
+        Returns:
+            The attribute ID as a string
+            
+        Raises:
+            AttributeNotFoundError: If attribute is not found
+        """
+        # Get attributes for the object type
+        attributes = self.get_object_attributes(object_type_id)
+        
+        # Find the attribute by name
+        for attr in attributes:
+            if attr['name'] == attribute_name:
+                return str(attr['id'])
+        
+        raise AttributeNotFoundError(f"Attribute '{attribute_name}' not found in object type {object_type_id}")
+    
     def create_attribute_update(self, attribute_name: str, value: Any, object_type_id: int) -> Dict[str, Any]:
         """
         Create an attribute update structure.
@@ -688,32 +744,67 @@ class JiraAssetsClient:
             self.logger.error(error_msg, exc_info=True)
             raise JiraAssetsAPIError(error_msg)
     
-    def create_object(self, object_type_id: int, attributes: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def create_object(
+        self, 
+        object_type_id: str, 
+        attributes: List[Dict[str, Any]], 
+        has_avatar: bool = False,
+        avatar_uuid: str = None
+    ) -> Dict[str, Any]:
         """
         Create a new object in the specified object type.
         
         Args:
             object_type_id: The object type ID to create the object in
             attributes: List of attribute values for the new object
+            has_avatar: Whether the object has an avatar
+            avatar_uuid: UUID of the avatar (if has_avatar is True)
             
         Returns:
             Created object information
             
         Raises:
+            ValueError: For invalid input parameters
             JiraAssetsAPIError: For API errors
         """
+        # Input validation
+        if not object_type_id or (isinstance(object_type_id, str) and not object_type_id.strip()):
+            raise ValueError("object_type_id cannot be empty")
+        
+        if object_type_id is None:
+            raise ValueError("object_type_id cannot be None")
+            
+        if not isinstance(attributes, list):
+            raise ValueError("attributes must be a list")
+        
         self.logger.info(f"Creating new object in object type {object_type_id} with {len(attributes)} attributes")
+        
+        # Refresh OAuth headers before making the request
+        if self.oauth_client:
+            self._refresh_oauth_headers()
         
         self._rate_limit()
         
-        url = f"{self.assets_base_url}/object/create"
+        # Determine URL based on auth method
+        if self.assets_base_url:
+            url = f"{self.assets_base_url}/object/create"
+        else:
+            # Fallback for basic auth
+            url = f"{self.base_url}/gateway/api/jsm/assets/workspace/{self.workspace_id}/v1/object/create"
         
         payload = {
-            "objectTypeId": object_type_id,
+            "objectTypeId": str(object_type_id),
             "attributes": attributes
         }
         
+        # Add avatar parameters if specified
+        if has_avatar:
+            payload["hasAvatar"] = has_avatar
+            if avatar_uuid:
+                payload["avatarUUID"] = avatar_uuid
+        
         try:
+            self.logger.debug(f"POST to: {url} with payload: {payload}")
             response = self.session.post(url, json=payload)
             data = self._handle_response(response, f"create object in type {object_type_id}")
             
@@ -721,6 +812,10 @@ class JiraAssetsClient:
             self.logger.info(f"Successfully created object {object_key} in object type {object_type_id}")
             return data
             
+        except requests.exceptions.Timeout as e:
+            error_msg = f"Network timeout while creating object: {e}"
+            self.logger.error(error_msg)
+            raise JiraAssetsAPIError(error_msg)
         except requests.exceptions.RequestException as e:
             error_msg = f"Network error while creating object: {e}"
             self.logger.error(error_msg)
